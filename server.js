@@ -81,3 +81,30 @@ app.get('/api/debug/password', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// FORCE RESET ADMIN PASSWORD – Visit this URL once
+app.get('/api/reset-admin', async (req, res) => {
+  try {
+    const User = require('./models/User');
+    const bcrypt = require('bcrypt');
+    
+    const admin = await User.findOne({ role: 'admin' });
+    if (!admin) {
+      return res.send('❌ Admin user not found in database.');
+    }
+    
+    // Re-hash 'admin123' securely
+    const newHash = await bcrypt.hash('admin123', 10);
+    admin.password = newHash;
+    await admin.save();
+    
+    res.send(`
+      <h2>✅ Admin password reset successful!</h2>
+      <p>Username: <strong>admin</strong></p>
+      <p>Password: <strong>admin123</strong></p>
+      <p>Now go back to the <a href="/">login page</a> and try again.</p>
+    `);
+  } catch (err) {
+    res.status(500).send(`Error: ${err.message}`);
+  }
+});
