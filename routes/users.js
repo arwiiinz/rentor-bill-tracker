@@ -4,7 +4,7 @@ const User = require('../models/User');
 const { authMiddleware, adminOnly } = require('../middleware/auth');
 const router = express.Router();
 // Inside routes/users.js, where admin creates a user
-const { hashPassword } = require('../utils/crypto'); // or copy the hashPassword function
+
 
 
 const crypto = require('crypto');
