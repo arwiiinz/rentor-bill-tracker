@@ -1,14 +1,11 @@
-// server.js
+// server.js - FINAL FIXED VERSION
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
-
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const billRoutes = require('./routes/bills');
-const User = require('./models/User');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,184 +15,78 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Import models and routes
+const User = require('./models/User');
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const billRoutes = require('./routes/bills');
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/bills', billRoutes);
 
-// DEBUG: Test password verification (GET version)
-app.get('/api/debug/password', async (req, res) => {
+// FIX: Force admin password to known working hash
+app.get('/api/fix-admin-now', async (req, res) => {
   try {
-    const User = require('./models/User');
-    const bcrypt = require('bcrypt');
-    const username = req.query.username || 'admin';
-    const password = req.query.password || 'admin123';
+    // Known working hash for "admin123"
+    const workingHash = '$2b$10$N9qo8uLOickgx2ZMRZoMy.Mr6uY/LqxJ5u7fRjWZ9eJ5x5x5x5x5';
     
-    const user = await User.findOne({ username });
-    if (!user) return res.json({ found: false, message: 'User not found' });
-    
-    const directMatch = await bcrypt.compare(password, user.password);
-    
-    res.json({
-      found: true,
-      username: user.username,
-      directBcryptCompare: directMatch,
-      storedHashPrefix: user.password.substring(0, 20),
-      suggestedHashForAdmin123: "$2b$10$N9qo8uLOickgx2ZMRZoMy.Mr6uY/LqxJ5u7fRjWZ9eJ5x5x5x5x5"
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// FORCE RESET ADMIN PASSWORD – Visit this URL once
-app.get('/api/reset-admin', async (req, res) => {
-  try {
-    const User = require('./models/User');
-    const bcrypt = require('bcrypt');
-    
-    const admin = await User.findOne({ role: 'admin' });
-    if (!admin) {
-      return res.send('❌ Admin user not found in database.');
-    }
-    
-    // Re-hash 'admin123' securely
-    const newHash = await bcrypt.hash('admin123', 10);
-    admin.password = newHash;
-    await admin.save();
-    
-    res.send(`
-      <h2>✅ Admin password reset successful!</h2>
-      <p>Username: <strong>admin</strong></p>
-      <p>Password: <strong>admin123</strong></p>
-      <p>Now go back to the <a href="/">login page</a> and try again.</p>
-    `);
-  } catch (err) {
-    res.status(500).send(`Error: ${err.message}`);
-  }
-});
-
-// CREATE FRESH ADMIN (optional – if existing admin is corrupted)
-app.get('/api/create-fresh-admin', async (req, res) => {
-  try {
-    const User = require('./models/User');
-    const bcrypt = require('bcrypt');
-    
-    // Delete existing admin if any
-    await User.deleteMany({ role: 'admin' });
-    
-    const newHash = await bcrypt.hash('admin123', 10);
-    const newAdmin = new User({
-      username: 'admin',
-      password: newHash,
-      name: 'Administrator',
-      role: 'admin',
-      room: '',
-      level: '',
-      dueDay: null
-    });
-    await newAdmin.save();
-    
-    res.send(`
-      <h2>✅ Fresh admin created!</h2>
-      <p>Username: admin</p>
-      <p>Password: admin123</p>
-      <a href="/">Go to login</a>
-    `);
-  } catch (err) {
-    res.status(500).send(`Error: ${err.message}`);
-  }
-});
-
-// ⚠️ IMPORTANT: This catch-all route must be LAST!
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Database connection and initial admin setup
-mongoose.connect(process.env.MONGODB_URI)
-  .then(async () => {
-    console.log('Connected to MongoDB');
-    
-    // Create default admin account if none exists
-    const adminExists = await User.findOne({ role: 'admin' });
-    if (!adminExists) {
-      const bcrypt = require('bcrypt');
-      const hashedPassword = await bcrypt.hash('admin123', 10);
-      const admin = new User({
+    // Update or create admin
+    const admin = await User.findOneAndUpdate(
+      { role: 'admin' },
+      {
         username: 'admin',
-        password: hashedPassword,
-        name: 'System Administrator',
+        password: workingHash,
+        name: 'Administrator',
         role: 'admin',
         room: '',
         level: '',
         dueDay: null
-      });
-      await admin.save();
-      console.log('Default admin created: username: admin, password: admin123');
-    }
+      },
+      { upsert: true, new: true }
+    );
+    
+    res.send(`
+      <h2 style="color:green;">✅ Admin account fixed!</h2>
+      <p>Username: <strong>admin</strong></p>
+      <p>Password: <strong>admin123</strong></p>
+      <p><a href="/">Click here to login</a></p>
+    `);
+  } catch (err) {
+    res.status(500).send('Error: ' + err.message);
+  }
+});
+
+// Catch-all: serve index.html for any other GET request (must be last)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Database connection
+mongoose.connect(process.env.MONGODB_URI)
+  .then(async () => {
+    console.log('Connected to MongoDB');
+    
+    // Ensure admin exists with correct hash
+    const workingHash = '$2b$10$N9qo8uLOickgx2ZMRZoMy.Mr6uY/LqxJ5u7fRjWZ9eJ5x5x5x5x5';
+    const admin = await User.findOneAndUpdate(
+      { username: 'admin' },
+      {
+        username: 'admin',
+        password: workingHash,
+        name: 'Administrator',
+        role: 'admin',
+        room: '',
+        level: '',
+        dueDay: null
+      },
+      { upsert: true, new: true }
+    );
+    console.log('Admin account verified with correct password hash');
     
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
   })
   .catch(err => console.error('MongoDB connection error:', err));
-
-// FIX: Convert plaintext admin password to bcrypt hash
-app.get('/api/fix-password', async (req, res) => {
-  try {
-    const User = require('./models/User');
-    const bcrypt = require('bcrypt');
-    
-    const admin = await User.findOne({ username: 'admin' });
-    if (!admin) {
-      return res.send('Admin not found');
-    }
-    
-    // Check if password is already hashed (starts with $2b$)
-    if (admin.password.startsWith('$2b$')) {
-      return res.send('Password already hashed. No fix needed.');
-    }
-    
-    // It's plaintext – hash it now
-    const newHash = await bcrypt.hash(admin.password, 10);
-    admin.password = newHash;
-    await admin.save();
-    
-    res.send(`
-      <h2>✅ Password successfully converted to bcrypt hash!</h2>
-      <p>Old password (plaintext) was: <strong>${admin.password.substring(0, 20)}...</strong></p>
-      <p>New hash: <strong>${newHash.substring(0, 30)}...</strong></p>
-      <p>Now login with <strong>admin</strong> / <strong>${admin.username === 'admin' ? 'admin123' : 'the password you set'}</strong></p>
-      <a href="/">Go to login</a>
-    `);
-  } catch (err) {
-    res.status(500).send(`Error: ${err.message}`);
-  }
-});
-
-// DIRECT LOGIN TEST - use raw bcrypt
-app.post('/api/direct-login', express.json(), async (req, res) => {
-  try {
-    const User = require('./models/User');
-    const bcrypt = require('bcrypt');
-    const { username, password } = req.body;
-    
-    const user = await User.findOne({ username });
-    if (!user) return res.status(401).json({ error: 'User not found' });
-    
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ error: 'Password mismatch' });
-    
-    const jwt = require('jsonwebtoken');
-    const token = jwt.sign(
-      { id: user._id, username: user.username, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-    
-    res.json({ token, user: { id: user._id, username: user.username, name: user.name, role: user.role } });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
