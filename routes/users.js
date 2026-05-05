@@ -3,6 +3,21 @@ const express = require('express');
 const User = require('../models/User');
 const { authMiddleware, adminOnly } = require('../middleware/auth');
 const router = express.Router();
+// Inside routes/users.js, where admin creates a user
+const { hashPassword } = require('../utils/crypto'); // or copy the hashPassword function
+
+
+const crypto = require('crypto');
+const PASSWORD_SECRET = process.env.PASSWORD_SECRET || 'fallback-secret-change-this';
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.createHmac('sha256', PASSWORD_SECRET + salt)
+                     .update(password)
+                     .digest('hex');
+  return `${salt}:${hash}`;
+}
+
 
 // Get current user
 router.get('/me', authMiddleware, async (req, res) => {
@@ -42,6 +57,7 @@ router.get('/clients', authMiddleware, async (req, res) => {
 });
 
 // Create new user (admin only)
+// Create new user (admin only)
 router.post('/', authMiddleware, adminOnly, async (req, res) => {
   try {
     const { username, password, name, role, room, level, dueDay } = req.body;
@@ -60,9 +76,12 @@ router.post('/', authMiddleware, adminOnly, async (req, res) => {
       return res.status(400).json({ error: 'Username already exists' });
     }
     
+    // Hash the password using crypto before saving
+    const hashedPassword = hashPassword(password);
+    
     const user = new User({
       username,
-      password,
+      password: hashedPassword,
       name,
       role,
       room: room || '',
@@ -79,7 +98,6 @@ router.post('/', authMiddleware, adminOnly, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // Update user (admin only)
 router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
   try {
