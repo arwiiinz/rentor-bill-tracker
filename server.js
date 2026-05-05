@@ -90,3 +90,21 @@ mongoose.connect(process.env.MONGODB_URI)
     });
   })
   .catch(err => console.error('MongoDB connection error:', err));
+
+app.get('/api/db-status', async (req, res) => {
+  try {
+    const User = require('./models/User');
+    const count = await User.countDocuments();
+    const sampleUser = await User.findOne();
+    res.json({
+      connected: true,
+      userCount: count,
+      sampleUserExists: !!sampleUser,
+      sampleUsername: sampleUser?.username,
+      sampleRole: sampleUser?.role,
+      dbName: mongoose.connection.name
+    });
+  } catch (err) {
+    res.json({ connected: false, error: err.message });
+  }
+});
