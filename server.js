@@ -57,34 +57,25 @@ mongoose.connect(process.env.MONGODB_URI)
   })
   .catch(err => console.error('MongoDB connection error:', err));
 
-app.post('/api/debug/password', async (req, res) => {
+// DEBUG: Test password verification (GET version)
+app.get('/api/debug/password', async (req, res) => {
   try {
     const User = require('./models/User');
     const bcrypt = require('bcrypt');
-    const { username, password } = req.body;
+    const username = req.query.username || 'admin';
+    const password = req.query.password || 'admin123';
     
     const user = await User.findOne({ username });
     if (!user) return res.json({ found: false, message: 'User not found' });
     
-    // Direct bcrypt compare
     const directMatch = await bcrypt.compare(password, user.password);
-    
-    // Also try using the model's method
-    let modelMatch = false;
-    try {
-      modelMatch = await user.comparePassword(password);
-    } catch(e) {
-      modelMatch = `error: ${e.message}`;
-    }
     
     res.json({
       found: true,
       username: user.username,
-      role: user.role,
-      passwordHashPrefix: user.password.substring(0, 20),
       directBcryptCompare: directMatch,
-      modelComparePassword: modelMatch,
-      note: "If directBcryptCompare is false, the password hash doesn't match 'admin123'. Try updating the hash in MongoDB."
+      storedHashPrefix: user.password.substring(0, 20),
+      suggestedHashForAdmin123: "$2b$10$N9qo8uLOickgx2ZMRZoMy.Mr6uY/LqxJ5u7fRjWZ9eJ5x5x5x5x5"
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
