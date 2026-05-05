@@ -1,0 +1,548 @@
+<!-- public/dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Dashboard - Rentor Bill Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .sidebar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.8);
+            border-radius: 10px;
+            margin: 5px 0;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+        .sidebar .nav-link i {
+            width: 25px;
+        }
+        .main-content {
+            padding: 20px;
+        }
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border: none;
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background: white;
+            border-bottom: 2px solid #f0f0f0;
+            border-radius: 15px 15px 0 0 !important;
+            font-weight: 600;
+        }
+        .table-responsive {
+            border-radius: 15px;
+        }
+        .badge-pending {
+            background-color: #ffc107;
+            color: #000;
+        }
+        .badge-paid {
+            background-color: #28a745;
+        }
+        .btn-sm {
+            border-radius: 8px;
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                min-height: auto;
+                padding: 10px;
+            }
+            .main-content {
+                padding: 15px;
+            }
+            .card-header {
+                font-size: 1rem;
+            }
+        }
+        .logout-btn {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid p-0">
+        <div class="row g-0">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 sidebar p-3">
+                <div class="text-center mb-4">
+                    <i class="fas fa-home fa-2x"></i>
+                    <h5 class="mt-2">Rentor Tracker</h5>
+                    <small id="userRoleBadge" class="d-block mt-2"></small>
+                </div>
+                <hr class="bg-light">
+                <nav class="nav flex-column">
+                    <a class="nav-link active" href="#" data-section="dashboard">
+                        <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+                    </a>
+                    <a class="nav-link" href="#" data-section="bills">
+                        <i class="fas fa-file-invoice-dollar me-2"></i> Bills
+                    </a>
+                    <div id="adminSections" style="display: none;">
+                        <a class="nav-link" href="#" data-section="users">
+                            <i class="fas fa-users me-2"></i> Manage Tenants
+                        </a>
+                        <a class="nav-link" href="#" data-section="register">
+                            <i class="fas fa-user-plus me-2"></i> Register New Tenant
+                        </a>
+                    </div>
+                    <div id="specialSections" style="display: none;">
+                        <a class="nav-link" href="#" data-section="addBill">
+                            <i class="fas fa-plus-circle me-2"></i> Add Bill
+                        </a>
+                    </div>
+                </nav>
+                <hr class="bg-light">
+                <div class="logout-btn p-2 mt-auto" onclick="logout()">
+                    <i class="fas fa-sign-out-alt me-2"></i> Logout
+                </div>
+            </div>
+            
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 main-content">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 id="welcomeMessage">Welcome, User</h4>
+                    <div class="text-muted" id="currentDateTime"></div>
+                </div>
+                
+                <div id="dashboardContent">
+                    <!-- Dynamic content loaded here -->
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let allClients = [];
+        let allBills = [];
+        
+        // Check authentication
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/';
+        }
+        
+        // Get current user
+        async function loadUser() {
+            try {
+                const response = await fetch('/api/users/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('Unauthorized');
+                currentUser = await response.json();
+                localStorage.setItem('user', JSON.stringify(currentUser));
+                updateUIForRole();
+                document.getElementById('welcomeMessage').innerHTML = `Welcome, ${currentUser.name} <i class="fas fa-smile-wink"></i>`;
+                document.getElementById('userRoleBadge').innerHTML = `<span class="badge bg-light text-dark">${currentUser.role.toUpperCase()}</span>`;
+                
+                // Show sections based on role
+                if (currentUser.role === 'admin') {
+                    document.getElementById('adminSections').style.display = 'block';
+                } else if (currentUser.role === 'special') {
+                    document.getElementById('specialSections').style.display = 'block';
+                }
+                
+                await loadInitialData();
+                showSection('dashboard');
+            } catch (error) {
+                logout();
+            }
+        }
+        
+        async function loadInitialData() {
+            try {
+                // Load clients (admin see all, special see all clients, client sees only themselves)
+                const clientsRes = await fetch('/api/users/clients', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (clientsRes.ok) allClients = await clientsRes.json();
+                
+                // Load bills
+                const billsRes = await fetch('/api/bills', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (billsRes.ok) allBills = await billsRes.json();
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+        
+        function updateUIForRole() {
+            // Role-specific UI updates
+        }
+        
+        function showSection(section) {
+            const contentDiv = document.getElementById('dashboardContent');
+            switch(section) {
+                case 'dashboard':
+                    showDashboard(contentDiv);
+                    break;
+                case 'bills':
+                    showBills(contentDiv);
+                    break;
+                case 'users':
+                    if (currentUser.role === 'admin') showUsers(contentDiv);
+                    break;
+                case 'register':
+                    if (currentUser.role === 'admin') showRegisterForm(contentDiv);
+                    break;
+                case 'addBill':
+                    if (currentUser.role === 'special' || currentUser.role === 'admin') showAddBillForm(contentDiv);
+                    break;
+                default:
+                    showDashboard(contentDiv);
+            }
+            
+            // Update active nav link
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('data-section') === section) {
+                    link.classList.add('active');
+                }
+            });
+        }
+        
+        function showDashboard(container) {
+            const pendingCount = allBills.filter(b => b.status === 'pending').length;
+            const paidCount = allBills.filter(b => b.status === 'paid').length;
+            const totalAmount = allBills.filter(b => b.status === 'pending').reduce((sum, b) => sum + b.amount, 0);
+            
+            let summaryHtml = `
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="fas fa-clock"></i> Pending Bills</h5>
+                                <h2 class="mb-0">${pendingCount}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="fas fa-check-circle"></i> Paid Bills</h5>
+                                <h2 class="mb-0">${paidCount}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-warning text-dark">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="fas fa-money-bill-wave"></i> Total Pending Amount</h5>
+                                <h2 class="mb-0">₱${totalAmount.toLocaleString()}</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">Recent Bills</div>
+                    <div class="card-body">
+                        ${renderBillsTable(allBills.slice(0, 10))}
+                    </div>
+                </div>
+            `;
+            container.innerHTML = summaryHtml;
+        }
+        
+        function showBills(container) {
+            container.innerHTML = `
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-file-invoice"></i> All Bills</span>
+                        ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
+                            `<button class="btn btn-sm btn-primary" onclick="showSection('addBill')"><i class="fas fa-plus"></i> Add Bill</button>` : ''}
+                    </div>
+                    <div class="card-body">
+                        ${renderBillsTable(allBills)}
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderBillsTable(bills) {
+            if (!bills.length) return '<p class="text-muted text-center">No bills found.</p>';
+            
+            return `
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr><th>Tenant</th><th>Description</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Action</th></tr>
+                        </thead>
+                        <tbody>
+                            ${bills.map(bill => `
+                                <tr>
+                                    <td>${bill.clientId?.name || 'Unknown'}<br><small class="text-muted">Rm ${bill.clientId?.room || ''} Lvl ${bill.clientId?.level || ''}</small></td>
+                                    <td>${bill.description}</td>
+                                    <td>₱${bill.amount.toLocaleString()}</td>
+                                    <td>${new Date(bill.dueDate).toLocaleDateString()}</td>
+                                    <td><span class="badge ${bill.status === 'pending' ? 'bg-warning' : 'bg-success'}">${bill.status.toUpperCase()}</span></td>
+                                    <td>${bill.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special') ? 
+                                        `<button class="btn btn-sm btn-success" onclick="markPaid('${bill._id}')"><i class="fas fa-check"></i> Mark Paid</button>` : 
+                                        bill.status === 'paid' ? `<small class="text-muted">Paid on ${bill.paidDate ? new Date(bill.paidDate).toLocaleDateString() : ''}</small>` : '-'}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        async function markPaid(billId) {
+            if (!confirm('Mark this bill as paid?')) return;
+            try {
+                const response = await fetch(`/api/bills/${billId}/pay`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                });
+                if (response.ok) {
+                    await loadInitialData();
+                    showSection('bills');
+                } else {
+                    alert('Failed to mark as paid');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        function showUsers(container) {
+            container.innerHTML = `
+                <div class="card">
+                    <div class="card-header">Manage Tenants & Staff</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Room</th><th>Level</th><th>Due Day</th><th>Actions</th></tr></thead>
+                                <tbody>
+                                    ${allClients.map(user => `
+                                        <tr>
+                                            <td>${user.name}</td>
+                                            <td>${user.username}</td>
+                                            <td><span class="badge bg-secondary">${user.role}</span></td>
+                                            <td>${user.room || '-'}</td>
+                                            <td>${user.level || '-'}</td>
+                                            <td>${user.dueDay || '-'}</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-danger" onclick="deleteUser('${user._id}')"><i class="fas fa-trash"></i></button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function deleteUser(userId) {
+            if (!confirm('Delete this user permanently?')) return;
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    await loadInitialData();
+                    showSection('users');
+                } else {
+                    alert('Delete failed');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        function showRegisterForm(container) {
+            container.innerHTML = `
+                <div class="card">
+                    <div class="card-header">Register New Tenant (Client)</div>
+                    <div class="card-body">
+                        <form id="registerForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label>Full Name *</label>
+                                    <input type="text" class="form-control" id="regName" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>Username *</label>
+                                    <input type="text" class="form-control" id="regUsername" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>Password *</label>
+                                    <input type="password" class="form-control" id="regPassword" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>Role</label>
+                                    <select class="form-control" id="regRole">
+                                        <option value="client">Client (Tenant)</option>
+                                        <option value="special">Special Staff</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label>Room Number *</label>
+                                    <input type="text" class="form-control" id="regRoom" placeholder="e.g., 101">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label>Level/Floor *</label>
+                                    <input type="text" class="form-control" id="regLevel" placeholder="e.g., 2nd Floor">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label>Due Day (1-31)</label>
+                                    <input type="number" class="form-control" id="regDueDay" min="1" max="31" placeholder="Optional">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Register Tenant</button>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('registerForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const role = document.getElementById('regRole').value;
+                const data = {
+                    username: document.getElementById('regUsername').value,
+                    password: document.getElementById('regPassword').value,
+                    name: document.getElementById('regName').value,
+                    role: role,
+                    room: document.getElementById('regRoom').value,
+                    level: document.getElementById('regLevel').value,
+                    dueDay: document.getElementById('regDueDay').value || null
+                };
+                
+                try {
+                    const response = await fetch('/api/users', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    if (response.ok) {
+                        alert('User registered successfully!');
+                        await loadInitialData();
+                        showSection('users');
+                    } else {
+                        const err = await response.json();
+                        alert('Error: ' + err.error);
+                    }
+                } catch (error) {
+                    alert('Registration failed: ' + error.message);
+                }
+            });
+        }
+        
+        function showAddBillForm(container) {
+            container.innerHTML = `
+                <div class="card">
+                    <div class="card-header">Add New Bill</div>
+                    <div class="card-body">
+                        <form id="billForm">
+                            <div class="mb-3">
+                                <label>Select Tenant *</label>
+                                <select class="form-control" id="billClientId" required>
+                                    <option value="">Choose tenant...</option>
+                                    ${allClients.filter(c => c.role === 'client').map(c => `<option value="${c._id}">${c.name} (Rm ${c.room} Lvl ${c.level})</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label>Description *</label>
+                                <input type="text" class="form-control" id="billDesc" placeholder="e.g., Rent - September 2025" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Amount (₱) *</label>
+                                <input type="number" class="form-control" id="billAmount" step="0.01" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Due Date *</label>
+                                <input type="date" class="form-control" id="billDueDate" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-plus-circle"></i> Create Bill</button>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('billForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const data = {
+                    clientId: document.getElementById('billClientId').value,
+                    description: document.getElementById('billDesc').value,
+                    amount: parseFloat(document.getElementById('billAmount').value),
+                    dueDate: document.getElementById('billDueDate').value
+                };
+                
+                try {
+                    const response = await fetch('/api/bills', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    if (response.ok) {
+                        alert('Bill added successfully!');
+                        await loadInitialData();
+                        showSection('bills');
+                    } else {
+                        const err = await response.json();
+                        alert('Error: ' + err.error);
+                    }
+                } catch (error) {
+                    alert('Failed to add bill: ' + error.message);
+                }
+            });
+        }
+        
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/';
+        }
+        
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('currentDateTime').innerHTML = now.toLocaleString();
+        }
+        
+        // Event listeners for navigation
+        document.querySelectorAll('[data-section]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                showSection(link.getAttribute('data-section'));
+            });
+        });
+        
+        setInterval(updateDateTime, 1000);
+        updateDateTime();
+        loadUser();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
