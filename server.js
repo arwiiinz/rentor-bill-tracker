@@ -173,3 +173,29 @@ app.get('/api/fix-password', async (req, res) => {
     res.status(500).send(`Error: ${err.message}`);
   }
 });
+
+// DIRECT LOGIN TEST - use raw bcrypt
+app.post('/api/direct-login', express.json(), async (req, res) => {
+  try {
+    const User = require('./models/User');
+    const bcrypt = require('bcrypt');
+    const { username, password } = req.body;
+    
+    const user = await User.findOne({ username });
+    if (!user) return res.status(401).json({ error: 'User not found' });
+    
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ error: 'Password mismatch' });
+    
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign(
+      { id: user._id, username: user.username, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    res.json({ token, user: { id: user._id, username: user.username, name: user.name, role: user.role } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
