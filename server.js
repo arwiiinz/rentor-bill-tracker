@@ -140,3 +140,36 @@ mongoose.connect(process.env.MONGODB_URI)
     });
   })
   .catch(err => console.error('MongoDB connection error:', err));
+
+// FIX: Convert plaintext admin password to bcrypt hash
+app.get('/api/fix-password', async (req, res) => {
+  try {
+    const User = require('./models/User');
+    const bcrypt = require('bcrypt');
+    
+    const admin = await User.findOne({ username: 'admin' });
+    if (!admin) {
+      return res.send('Admin not found');
+    }
+    
+    // Check if password is already hashed (starts with $2b$)
+    if (admin.password.startsWith('$2b$')) {
+      return res.send('Password already hashed. No fix needed.');
+    }
+    
+    // It's plaintext – hash it now
+    const newHash = await bcrypt.hash(admin.password, 10);
+    admin.password = newHash;
+    await admin.save();
+    
+    res.send(`
+      <h2>✅ Password successfully converted to bcrypt hash!</h2>
+      <p>Old password (plaintext) was: <strong>${admin.password.substring(0, 20)}...</strong></p>
+      <p>New hash: <strong>${newHash.substring(0, 30)}...</strong></p>
+      <p>Now login with <strong>admin</strong> / <strong>${admin.username === 'admin' ? 'admin123' : 'the password you set'}</strong></p>
+      <a href="/">Go to login</a>
+    `);
+  } catch (err) {
+    res.status(500).send(`Error: ${err.message}`);
+  }
+});
