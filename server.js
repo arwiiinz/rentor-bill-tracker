@@ -189,3 +189,45 @@ mongoose.connect(process.env.MONGODB_URI)
     console.error('❌ MongoDB connection error:', err);
     process.exit(1);
   });
+// DIAGNOSE tenant login issue
+app.post('/api/diagnose-tenant', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.json({ exists: false, message: 'User not found' });
+    }
+    
+    // Check password format
+    const isCryptoFormat = user.password.includes(':');
+    let cryptoValid = false;
+    let bcryptValid = false;
+    
+    if (isCryptoFormat) {
+      // Test with crypto verify
+      const [salt, originalHash] = user.password.split(':');
+      const testHash = crypto.createHmac('sha256', (process.env.PASSWORD_SECRET || 'fallback-secret-change-this') + salt)
+                             .update(password)
+                             .digest('hex');
+      cryptoValid = (testHash === originalHash);
+    } else {
+      // Try bcrypt compare if bcrypt available
+      try {
+        const bcrypt = require('bcrypt');
+        bcryptValid = await bcrypt.compare(password, user.password);
+      } catch(e) { bcryptValid = false; }
+    }
+    
+    res.json({
+      exists: true,
+      username: user.username,
+      role: user.role,
+      passwordFormat: isCryptoFormat ? 'crypto (salt:hash)' : 'bcrypt/plain',
+      cryptoVerifyResult: cryptoValid,
+      bcryptVerifyResult: bcryptValid,
+      storedHashPreview: user.password.substring(0, 30) + '...'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
