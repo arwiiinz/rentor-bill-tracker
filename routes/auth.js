@@ -1,18 +1,26 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { verifyPassword } = require('../utils/crypto');
+const crypto = require('crypto');
+
+const PASSWORD_SECRET = process.env.PASSWORD_SECRET || 'fallback-secret-change-this';
+
+function verifyPassword(stored, password) {
+  const [salt, originalHash] = stored.split(':');
+  const hash = crypto.createHmac('sha256', PASSWORD_SECRET + salt)
+                     .update(password)
+                     .digest('hex');
+  return hash === originalHash;
+}
+
 const router = express.Router();
 
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-    const valid = verifyPassword(user.password, password);
-    if (!valid) {
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!verifyPassword(user.password, password)) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     const token = jwt.sign(
