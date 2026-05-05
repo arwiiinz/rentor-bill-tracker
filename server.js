@@ -108,3 +108,50 @@ app.get('/api/db-status', async (req, res) => {
     res.json({ connected: false, error: err.message });
   }
 });
+// ========== PUBLIC REGISTRATION ENDPOINT ==========
+app.post('/api/register', express.json(), async (req, res) => {
+  try {
+    const User = require('./models/User');
+    const bcrypt = require('bcrypt');
+    
+    const { username, password, name, room, level, dueDay } = req.body;
+    
+    // Validation
+    if (!username || !password || !name || !room || !level) {
+      return res.status(400).json({ error: 'Missing required fields: username, password, name, room, level' });
+    }
+    
+    // Check if username already exists
+    const existing = await User.findOne({ username });
+    if (existing) {
+      return res.status(400).json({ error: 'Username already taken' });
+    }
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Create new client
+    const newUser = new User({
+      username,
+      password: hashedPassword,
+      name,
+      role: 'client',
+      room,
+      level,
+      dueDay: dueDay || null
+    });
+    
+    await newUser.save();
+    
+    // Return user without password
+    const userResponse = newUser.toObject();
+    delete userResponse.password;
+    
+    res.status(201).json({
+      message: 'Account created successfully',
+      user: userResponse
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
