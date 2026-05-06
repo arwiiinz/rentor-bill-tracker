@@ -1,548 +1,526 @@
-<!-- public/dashboard.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Dashboard - Rentor Bill Tracker</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
+    <title>Rentor · Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#f9fafb">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            background-color: #f8f9fc;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f5f7fb;
+            color: #1f2937;
+            padding-bottom: 2rem;
         }
-        .sidebar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+        /* Mobile-first layout */
+        .app {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #ffffff;
             min-height: 100vh;
-            color: white;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.02);
         }
-        .sidebar .nav-link {
-            color: rgba(255,255,255,0.8);
-            border-radius: 10px;
-            margin: 5px 0;
-            transition: all 0.3s;
+
+        /* Header */
+        .header {
+            background: #ffffff;
+            padding: 1.2rem 1.25rem 0.8rem 1.25rem;
+            border-bottom: 1px solid #f0f2f5;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(8px);
         }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active {
-            background: rgba(255,255,255,0.2);
-            color: white;
+
+        .welcome-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 0.5rem;
         }
-        .sidebar .nav-link i {
-            width: 25px;
+
+        .greeting h2 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            letter-spacing: -0.3px;
         }
-        .main-content {
-            padding: 20px;
+
+        .greeting p {
+            font-size: 0.8rem;
+            color: #6b7280;
         }
-        .card {
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+
+        .role-badge {
+            background: #f0f4fe;
+            padding: 0.25rem 0.75rem;
+            border-radius: 40px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #2c3e8f;
+        }
+
+        /* Bottom navigation (mobile) */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(12px);
+            border-top: 1px solid #f0f2f5;
+            display: flex;
+            justify-content: space-around;
+            padding: 0.65rem 1rem 1rem 1rem;
+            max-width: 600px;
+            margin: 0 auto;
+            z-index: 20;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.7rem;
+            background: none;
             border: none;
-            margin-bottom: 20px;
+            font-family: inherit;
+            color: #9ca3af;
+            transition: color 0.2s;
+            cursor: pointer;
+            font-weight: 500;
         }
+
+        .nav-item i {
+            font-size: 1.4rem;
+        }
+
+        .nav-item.active {
+            color: #2c3e8f;
+        }
+
+        /* main content */
+        .main-content {
+            padding: 1.25rem 1.25rem 5rem 1.25rem;
+        }
+
+        /* cards */
+        .card {
+            background: #ffffff;
+            border-radius: 28px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.03);
+            border: 1px solid #f0f2f5;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
         .card-header {
-            background: white;
-            border-bottom: 2px solid #f0f0f0;
-            border-radius: 15px 15px 0 0 !important;
+            padding: 1rem 1.25rem;
+            font-weight: 600;
+            border-bottom: 1px solid #f0f2f5;
+            background: #fefefe;
+        }
+
+        .card-body {
+            padding: 1.2rem 1.25rem;
+        }
+
+        /* stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+
+        .stat-card {
+            background: #f9fafb;
+            border-radius: 20px;
+            padding: 1rem 0.5rem;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+
+        /* tables / list */
+        .bill-item, .message-item, .user-item {
+            padding: 0.9rem 0;
+            border-bottom: 1px solid #f0f2f5;
+        }
+
+        .bill-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            padding: 0.2rem 0.7rem;
+            border-radius: 40px;
+            font-size: 0.7rem;
             font-weight: 600;
         }
-        .table-responsive {
-            border-radius: 15px;
+
+        .badge-pending { background: #fff3e0; color: #b45309; }
+        .badge-paid { background: #e3f7ec; color: #15803d; }
+
+        button.small {
+            background: none;
+            border: none;
+            color: #4b5563;
+            font-size: 0.8rem;
+            padding: 0.3rem 0.8rem;
+            border-radius: 40px;
+            background: #f3f4f6;
         }
-        .badge-pending {
-            background-color: #ffc107;
-            color: #000;
+
+        button.primary-btn {
+            background: #2c3e8f;
+            color: white;
+            padding: 0.7rem 1.2rem;
+            border-radius: 40px;
+            border: none;
+            font-weight: 500;
         }
-        .badge-paid {
-            background-color: #28a745;
+
+        form input, form select, form textarea {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 20px;
+            margin-bottom: 1rem;
+            font-family: inherit;
         }
-        .btn-sm {
-            border-radius: 8px;
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: #9ca3af;
         }
-        @media (max-width: 768px) {
-            .sidebar {
-                min-height: auto;
-                padding: 10px;
-            }
-            .main-content {
-                padding: 15px;
-            }
-            .card-header {
-                font-size: 1rem;
-            }
-        }
-        .logout-btn {
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .logout-btn:hover {
-            background: rgba(255,255,255,0.2);
-            border-radius: 10px;
+
+        @media (max-width: 480px) {
+            .stat-number { font-size: 1.4rem; }
+            .card-header { padding: 0.8rem 1rem; }
+            .card-body { padding: 1rem; }
         }
     </style>
 </head>
 <body>
-    <div class="container-fluid p-0">
-        <div class="row g-0">
-            <!-- Sidebar -->
-            <div class="col-md-3 col-lg-2 sidebar p-3">
-                <div class="text-center mb-4">
-                    <i class="fas fa-home fa-2x"></i>
-                    <h5 class="mt-2">Rentor Tracker</h5>
-                    <small id="userRoleBadge" class="d-block mt-2"></small>
-                </div>
-                <hr class="bg-light">
-                <nav class="nav flex-column">
-                    <a class="nav-link active" href="#" data-section="dashboard">
-                        <i class="fas fa-tachometer-alt me-2"></i> Dashboard
-                    </a>
-                    <a class="nav-link" href="#" data-section="bills">
-                        <i class="fas fa-file-invoice-dollar me-2"></i> Bills
-                    </a>
-                    <div id="adminSections" style="display: none;">
-                        <a class="nav-link" href="#" data-section="users">
-                            <i class="fas fa-users me-2"></i> Manage Tenants
-                        </a>
-                        <a class="nav-link" href="#" data-section="register">
-                            <i class="fas fa-user-plus me-2"></i> Register New Tenant
-                        </a>
-                    </div>
-                    <div id="specialSections" style="display: none;">
-                        <a class="nav-link" href="#" data-section="addBill">
-                            <i class="fas fa-plus-circle me-2"></i> Add Bill
-                        </a>
-                    </div>
-                </nav>
-                <hr class="bg-light">
-                <div class="logout-btn p-2 mt-auto" onclick="logout()">
-                    <i class="fas fa-sign-out-alt me-2"></i> Logout
-                </div>
+<div class="app">
+    <div class="header">
+        <div class="welcome-row">
+            <div class="greeting">
+                <h2 id="welcomeMessage">Hello</h2>
+                <p id="userDetail"></p>
             </div>
-            
-            <!-- Main Content -->
-            <div class="col-md-9 col-lg-10 main-content">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 id="welcomeMessage">Welcome, User</h4>
-                    <div class="text-muted" id="currentDateTime"></div>
-                </div>
-                
-                <div id="dashboardContent">
-                    <!-- Dynamic content loaded here -->
-                    <div class="card">
-                        <div class="card-body text-center">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <div class="role-badge" id="roleBadge"></div>
         </div>
     </div>
 
-    <script>
-        let currentUser = null;
-        let allClients = [];
-        let allBills = [];
-        
-        // Check authentication
-        const token = localStorage.getItem('token');
-        if (!token) {
-            window.location.href = '/';
-        }
-        
-        // Get current user
-        async function loadUser() {
-            try {
-                const response = await fetch('/api/users/me', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (!response.ok) throw new Error('Unauthorized');
-                currentUser = await response.json();
-                localStorage.setItem('user', JSON.stringify(currentUser));
-                updateUIForRole();
-                document.getElementById('welcomeMessage').innerHTML = `Welcome, ${currentUser.name} <i class="fas fa-smile-wink"></i>`;
-                document.getElementById('userRoleBadge').innerHTML = `<span class="badge bg-light text-dark">${currentUser.role.toUpperCase()}</span>`;
-                
-                // Show sections based on role
-                if (currentUser.role === 'admin') {
-                    document.getElementById('adminSections').style.display = 'block';
-                } else if (currentUser.role === 'special') {
-                    document.getElementById('specialSections').style.display = 'block';
-                }
-                
-                await loadInitialData();
-                showSection('dashboard');
-            } catch (error) {
-                logout();
-            }
-        }
-        
-        async function loadInitialData() {
-            try {
-                // Load clients (admin see all, special see all clients, client sees only themselves)
-                const clientsRes = await fetch('/api/users/clients', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (clientsRes.ok) allClients = await clientsRes.json();
-                
-                // Load bills
-                const billsRes = await fetch('/api/bills', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (billsRes.ok) allBills = await billsRes.json();
-            } catch (error) {
-                console.error('Error loading data:', error);
-            }
-        }
-        
-        function updateUIForRole() {
-            // Role-specific UI updates
-        }
-        
-        function showSection(section) {
-            const contentDiv = document.getElementById('dashboardContent');
-            switch(section) {
-                case 'dashboard':
-                    showDashboard(contentDiv);
-                    break;
-                case 'bills':
-                    showBills(contentDiv);
-                    break;
-                case 'users':
-                    if (currentUser.role === 'admin') showUsers(contentDiv);
-                    break;
-                case 'register':
-                    if (currentUser.role === 'admin') showRegisterForm(contentDiv);
-                    break;
-                case 'addBill':
-                    if (currentUser.role === 'special' || currentUser.role === 'admin') showAddBillForm(contentDiv);
-                    break;
-                default:
-                    showDashboard(contentDiv);
-            }
-            
-            // Update active nav link
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.classList.remove('active');
-                if (link.getAttribute('data-section') === section) {
-                    link.classList.add('active');
-                }
-            });
-        }
-        
-        function showDashboard(container) {
-            const pendingCount = allBills.filter(b => b.status === 'pending').length;
-            const paidCount = allBills.filter(b => b.status === 'paid').length;
-            const totalAmount = allBills.filter(b => b.status === 'pending').reduce((sum, b) => sum + b.amount, 0);
-            
-            let summaryHtml = `
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <div class="card bg-primary text-white">
-                            <div class="card-body">
-                                <h5 class="card-title"><i class="fas fa-clock"></i> Pending Bills</h5>
-                                <h2 class="mb-0">${pendingCount}</h2>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="card bg-success text-white">
-                            <div class="card-body">
-                                <h5 class="card-title"><i class="fas fa-check-circle"></i> Paid Bills</h5>
-                                <h2 class="mb-0">${paidCount}</h2>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="card bg-warning text-dark">
-                            <div class="card-body">
-                                <h5 class="card-title"><i class="fas fa-money-bill-wave"></i> Total Pending Amount</h5>
-                                <h2 class="mb-0">₱${totalAmount.toLocaleString()}</h2>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-header">Recent Bills</div>
-                    <div class="card-body">
-                        ${renderBillsTable(allBills.slice(0, 10))}
-                    </div>
-                </div>
-            `;
-            container.innerHTML = summaryHtml;
-        }
-        
-        function showBills(container) {
-            container.innerHTML = `
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><i class="fas fa-file-invoice"></i> All Bills</span>
-                        ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
-                            `<button class="btn btn-sm btn-primary" onclick="showSection('addBill')"><i class="fas fa-plus"></i> Add Bill</button>` : ''}
-                    </div>
-                    <div class="card-body">
-                        ${renderBillsTable(allBills)}
-                    </div>
-                </div>
-            `;
-        }
-        
-        function renderBillsTable(bills) {
-            if (!bills.length) return '<p class="text-muted text-center">No bills found.</p>';
-            
-            return `
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr><th>Tenant</th><th>Description</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Action</th></tr>
-                        </thead>
-                        <tbody>
-                            ${bills.map(bill => `
-                                <tr>
-                                    <td>${bill.clientId?.name || 'Unknown'}<br><small class="text-muted">Rm ${bill.clientId?.room || ''} Lvl ${bill.clientId?.level || ''}</small></td>
-                                    <td>${bill.description}</td>
-                                    <td>₱${bill.amount.toLocaleString()}</td>
-                                    <td>${new Date(bill.dueDate).toLocaleDateString()}</td>
-                                    <td><span class="badge ${bill.status === 'pending' ? 'bg-warning' : 'bg-success'}">${bill.status.toUpperCase()}</span></td>
-                                    <td>${bill.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special') ? 
-                                        `<button class="btn btn-sm btn-success" onclick="markPaid('${bill._id}')"><i class="fas fa-check"></i> Mark Paid</button>` : 
-                                        bill.status === 'paid' ? `<small class="text-muted">Paid on ${bill.paidDate ? new Date(bill.paidDate).toLocaleDateString() : ''}</small>` : '-'}
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            `;
-        }
-        
-        async function markPaid(billId) {
-            if (!confirm('Mark this bill as paid?')) return;
-            try {
-                const response = await fetch(`/api/bills/${billId}/pay`, {
-                    method: 'PUT',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-                });
-                if (response.ok) {
-                    await loadInitialData();
-                    showSection('bills');
-                } else {
-                    alert('Failed to mark as paid');
-                }
-            } catch (error) {
-                alert('Error: ' + error.message);
-            }
-        }
-        
-        function showUsers(container) {
-            container.innerHTML = `
-                <div class="card">
-                    <div class="card-header">Manage Tenants & Staff</div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Room</th><th>Level</th><th>Due Day</th><th>Actions</th></tr></thead>
-                                <tbody>
-                                    ${allClients.map(user => `
-                                        <tr>
-                                            <td>${user.name}</td>
-                                            <td>${user.username}</td>
-                                            <td><span class="badge bg-secondary">${user.role}</span></td>
-                                            <td>${user.room || '-'}</td>
-                                            <td>${user.level || '-'}</td>
-                                            <td>${user.dueDay || '-'}</td>
-                                            <td>
-                                                <button class="btn btn-sm btn-danger" onclick="deleteUser('${user._id}')"><i class="fas fa-trash"></i></button>
-                                            </td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-        
-        async function deleteUser(userId) {
-            if (!confirm('Delete this user permanently?')) return;
-            try {
-                const response = await fetch(`/api/users/${userId}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) {
-                    await loadInitialData();
-                    showSection('users');
-                } else {
-                    alert('Delete failed');
-                }
-            } catch (error) {
-                alert('Error: ' + error.message);
-            }
-        }
-        
-        function showRegisterForm(container) {
-            container.innerHTML = `
-                <div class="card">
-                    <div class="card-header">Register New Tenant (Client)</div>
-                    <div class="card-body">
-                        <form id="registerForm">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label>Full Name *</label>
-                                    <input type="text" class="form-control" id="regName" required>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label>Username *</label>
-                                    <input type="text" class="form-control" id="regUsername" required>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label>Password *</label>
-                                    <input type="password" class="form-control" id="regPassword" required>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label>Role</label>
-                                    <select class="form-control" id="regRole">
-                                        <option value="client">Client (Tenant)</option>
-                                        <option value="special">Special Staff</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label>Room Number *</label>
-                                    <input type="text" class="form-control" id="regRoom" placeholder="e.g., 101">
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label>Level/Floor *</label>
-                                    <input type="text" class="form-control" id="regLevel" placeholder="e.g., 2nd Floor">
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label>Due Day (1-31)</label>
-                                    <input type="number" class="form-control" id="regDueDay" min="1" max="31" placeholder="Optional">
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Register Tenant</button>
-                        </form>
-                    </div>
-                </div>
-            `;
-            
-            document.getElementById('registerForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const role = document.getElementById('regRole').value;
-                const data = {
-                    username: document.getElementById('regUsername').value,
-                    password: document.getElementById('regPassword').value,
-                    name: document.getElementById('regName').value,
-                    role: role,
-                    room: document.getElementById('regRoom').value,
-                    level: document.getElementById('regLevel').value,
-                    dueDay: document.getElementById('regDueDay').value || null
-                };
-                
-                try {
-                    const response = await fetch('/api/users', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    if (response.ok) {
-                        alert('User registered successfully!');
-                        await loadInitialData();
-                        showSection('users');
-                    } else {
-                        const err = await response.json();
-                        alert('Error: ' + err.error);
-                    }
-                } catch (error) {
-                    alert('Registration failed: ' + error.message);
-                }
-            });
-        }
-        
-        function showAddBillForm(container) {
-            container.innerHTML = `
-                <div class="card">
-                    <div class="card-header">Add New Bill</div>
-                    <div class="card-body">
-                        <form id="billForm">
-                            <div class="mb-3">
-                                <label>Select Tenant *</label>
-                                <select class="form-control" id="billClientId" required>
-                                    <option value="">Choose tenant...</option>
-                                    ${allClients.filter(c => c.role === 'client').map(c => `<option value="${c._id}">${c.name} (Rm ${c.room} Lvl ${c.level})</option>`).join('')}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label>Description *</label>
-                                <input type="text" class="form-control" id="billDesc" placeholder="e.g., Rent - September 2025" required>
-                            </div>
-                            <div class="mb-3">
-                                <label>Amount (₱) *</label>
-                                <input type="number" class="form-control" id="billAmount" step="0.01" required>
-                            </div>
-                            <div class="mb-3">
-                                <label>Due Date *</label>
-                                <input type="date" class="form-control" id="billDueDate" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-plus-circle"></i> Create Bill</button>
-                        </form>
-                    </div>
-                </div>
-            `;
-            
-            document.getElementById('billForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const data = {
-                    clientId: document.getElementById('billClientId').value,
-                    description: document.getElementById('billDesc').value,
-                    amount: parseFloat(document.getElementById('billAmount').value),
-                    dueDate: document.getElementById('billDueDate').value
-                };
-                
-                try {
-                    const response = await fetch('/api/bills', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    if (response.ok) {
-                        alert('Bill added successfully!');
-                        await loadInitialData();
-                        showSection('bills');
-                    } else {
-                        const err = await response.json();
-                        alert('Error: ' + err.error);
-                    }
-                } catch (error) {
-                    alert('Failed to add bill: ' + error.message);
-                }
-            });
-        }
-        
-        function logout() {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            window.location.href = '/';
-        }
-        
-        function updateDateTime() {
-            const now = new Date();
-            document.getElementById('currentDateTime').innerHTML = now.toLocaleString();
-        }
-        
-        // Event listeners for navigation
-        document.querySelectorAll('[data-section]').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                showSection(link.getAttribute('data-section'));
-            });
+    <div class="main-content" id="mainContent">
+        <!-- dynamic views will be injected here -->
+        <div class="card"><div class="card-body">Loading...</div></div>
+    </div>
+
+    <div class="bottom-nav">
+        <button class="nav-item" data-section="dashboard"><i class="fas fa-chart-simple"></i><span>Home</span></button>
+        <button class="nav-item" data-section="bills"><i class="fas fa-receipt"></i><span>Bills</span></button>
+        <button class="nav-item" data-section="messages"><i class="fas fa-envelope"></i><span>Messages</span></button>
+        <button class="nav-item" id="adminNavBtn" style="display: none;" data-section="users"><i class="fas fa-users"></i><span>Tenants</span></button>
+        <button class="nav-item" id="specialNavBtn" style="display: none;" data-section="addBill"><i class="fas fa-plus-circle"></i><span>Add Bill</span></button>
+        <button class="nav-item" id="logoutBtn"><i class="fas fa-sign-out-alt"></i><span>Exit</span></button>
+    </div>
+</div>
+
+<script>
+    // --- global variables ---
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/';
+    let currentUser = null;
+    let allClients = [];
+    let allBills = [];
+
+    // --- helper functions ---
+    async function apiGet(url) {
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    }
+
+    async function apiPost(url, body) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
         });
-        
-        setInterval(updateDateTime, 1000);
-        updateDateTime();
-        loadUser();
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+    }
+
+    // --- load user ---
+    async function loadUser() {
+        try {
+            currentUser = await apiGet('/api/users/me');
+            localStorage.setItem('user', JSON.stringify(currentUser));
+            document.getElementById('welcomeMessage').innerHTML = `👋 ${currentUser.name.split(' ')[0]}`;
+            document.getElementById('userDetail').innerHTML = `${currentUser.room ? `Rm ${currentUser.room} · ` : ''}${currentUser.role === 'client' ? 'Tenant' : currentUser.role}`;
+            document.getElementById('roleBadge').innerText = currentUser.role.toUpperCase();
+
+            if (currentUser.role === 'admin') {
+                document.getElementById('adminNavBtn').style.display = 'flex';
+                document.getElementById('specialNavBtn').style.display = 'flex';
+            } else if (currentUser.role === 'special') {
+                document.getElementById('specialNavBtn').style.display = 'flex';
+            }
+        } catch(e) { logout(); }
+    }
+
+    async function loadData() {
+        try {
+            const clientsRes = await apiGet('/api/users/clients');
+            allClients = clientsRes;
+            const billsRes = await apiGet('/api/bills');
+            allBills = billsRes;
+        } catch(e) { console.warn(e); }
+    }
+
+    // --- render functions (minimalist)---
+    function renderDashboard(container) {
+        const pending = allBills.filter(b => b.status === 'pending').length;
+        const paid = allBills.filter(b => b.status === 'paid').length;
+        const totalDue = allBills.filter(b => b.status === 'pending').reduce((s,b) => s + b.amount, 0);
+        const recentBills = allBills.slice(0, 5);
+        container.innerHTML = `
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-number">${pending}</div><div class="stat-label">Pending</div></div>
+                <div class="stat-card"><div class="stat-number">${paid}</div><div class="stat-label">Paid</div></div>
+                <div class="stat-card"><div class="stat-number">₱${totalDue.toLocaleString()}</div><div class="stat-label">Due</div></div>
+            </div>
+            <div class="card"><div class="card-header">📋 Recent bills</div><div class="card-body">
+                ${recentBills.length ? recentBills.map(bill => `
+                    <div class="bill-item">
+                        <div class="bill-row">
+                            <span><strong>${bill.description}</strong><br><small>Due ${new Date(bill.dueDate).toLocaleDateString()}</small></span>
+                            <span>₱${bill.amount.toLocaleString()} <span class="badge ${bill.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${bill.status}</span></span>
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No bills yet</div>'}
+            </div></div>
+        `;
+    }
+
+    function renderBills(container) {
+        container.innerHTML = `
+            <div class="card"><div class="card-header">💰 All bills</div><div class="card-body">
+                ${allBills.length ? allBills.map(bill => `
+                    <div class="bill-item">
+                        <div class="bill-row">
+                            <div><strong>${bill.description}</strong><br><small>${bill.clientId?.name || 'Tenant'} · ${new Date(bill.dueDate).toLocaleDateString()}</small></div>
+                            <div>₱${bill.amount.toLocaleString()} <span class="badge ${bill.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${bill.status}</span>
+                            ${bill.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special') ? `<button class="small" onclick="markPaid('${bill._id}')">✔ Mark paid</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No bills found</div>'}
+            </div></div>
+        `;
+    }
+
+    window.markPaid = async (id) => {
+        if (!confirm('Mark this bill as paid?')) return;
+        try {
+            await fetch(`/api/bills/${id}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
+            await loadData();
+            showSection('bills');
+        } catch(e) { alert('Error'); }
+    };
+
+    // simplified user management only for admin
+    function renderUsers(container) {
+        container.innerHTML = `
+            <div class="card"><div class="card-header">👥 Tenants & staff</div><div class="card-body">
+                ${allClients.map(u => `
+                    <div class="user-item"><div><strong>${u.name}</strong> (${u.username})<br><small>${u.room ? `Rm ${u.room} Lv.${u.level}` : ''} · ${u.role}</small></div></div>
+                `).join('')}
+            </div></div>
+            <div class="card"><div class="card-header">➕ Register new tenant</div><div class="card-body">
+                <form id="registerFormSimple">
+                    <input type="text" placeholder="Full name" id="regName" required> 
+                    <input type="text" placeholder="Username" id="regUsername" required>
+                    <input type="password" placeholder="Password" id="regPass" required>
+                    <input type="text" placeholder="Room (e.g. 204)" id="regRoom" required>
+                    <input type="text" placeholder="Level (e.g. 2nd)" id="regLevel" required>
+                    <button class="primary-btn" style="width:100%">Create tenant account</button>
+                </form>
+            </div></div>
+        `;
+        document.getElementById('registerFormSimple')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                username: document.getElementById('regUsername').value,
+                password: document.getElementById('regPass').value,
+                name: document.getElementById('regName').value,
+                role: 'client',
+                room: document.getElementById('regRoom').value,
+                level: document.getElementById('regLevel').value,
+                dueDay: null
+            };
+            try {
+                await apiPost('/api/users', payload);
+                alert('Tenant created');
+                await loadData();
+                showSection('users');
+            } catch(err) { alert(err.message); }
+        });
+    }
+
+    function renderAddBill(container) {
+        container.innerHTML = `
+            <div class="card"><div class="card-header">➕ Add new bill</div><div class="card-body">
+                <form id="billFormSimple">
+                    <select id="clientIdSimple" required>${allClients.filter(c => c.role === 'client').map(c => `<option value="${c._id}">${c.name} (Rm ${c.room})</option>`).join('')}</select>
+                    <input type="text" placeholder="Description (e.g. Rent Sep)" id="descSimple" required>
+                    <input type="number" placeholder="Amount (₱)" id="amountSimple" required>
+                    <input type="date" id="dueDateSimple" required>
+                    <button class="primary-btn">Create bill</button>
+                </form>
+            </div></div>
+        `;
+        document.getElementById('billFormSimple')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                clientId: document.getElementById('clientIdSimple').value,
+                description: document.getElementById('descSimple').value,
+                amount: parseFloat(document.getElementById('amountSimple').value),
+                dueDate: document.getElementById('dueDateSimple').value
+            };
+            try {
+                await apiPost('/api/bills', data);
+                await loadData();
+                showSection('bills');
+            } catch(err) { alert(err.message); }
+        });
+    }
+
+    // --- messages (simple version) ---
+    async function renderMessages(container) {
+        let messages = [];
+        try { messages = await apiGet('/api/messages'); } catch(e) {}
+        container.innerHTML = `
+            <div class="card"><div class="card-header">✉️ Conversations</div><div class="card-body">
+                ${messages.length ? messages.map(m => `
+                    <div class="message-item"><strong>${m.subject}</strong><br><small>${new Date(m.createdAt).toLocaleString()}</small>
+                    <p>${m.message}</p></div>
+                `).join('') : '<div class="empty-state">No messages</div>'}
+            </div></div>
+            <div class="card"><div class="card-header">Send a message</div><div class="card-body">
+                <form id="msgForm">
+                    <input type="text" placeholder="To (username)" id="msgTo" required value="admin">
+                    <input type="text" placeholder="Subject" id="msgSubject" required>
+                    <textarea rows="2" placeholder="Message" id="msgBody" required></textarea>
+                    <button class="primary-btn">Send</button>
+                </form>
+            </div></div>
+        `;
+        document.getElementById('msgForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const to = document.getElementById('msgTo').value;
+            const subject = document.getElementById('msgSubject').value;
+            const message = document.getElementById('msgBody').value;
+            try {
+                await apiPost('/api/messages', { toUsername: to, subject, message });
+                alert('Sent');
+                showSection('messages');
+            } catch(err) { alert(err.message); }
+        });
+    }
+
+    // --- section switcher ---
+    async function showSection(section) {
+        const container = document.getElementById('mainContent');
+        await loadData(); // refresh bills/clients
+        if (section === 'dashboard') renderDashboard(container);
+        else if (section === 'bills') renderBills(container);
+        else if (section === 'users' && (currentUser.role === 'admin')) renderUsers(container);
+        else if (section === 'addBill' && (currentUser.role === 'admin' || currentUser.role === 'special')) renderAddBill(container);
+        else if (section === 'messages') renderMessages(container);
+        else renderDashboard(container);
+        // update active nav style
+        document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+        const activeBtn = document.querySelector(`.nav-item[data-section="${section}"]`);
+        if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = '/';
+    }
+
+    // --- init & service worker / push setup---
+    async function setupPush() {
+        if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') return;
+        try {
+            const reg = await navigator.serviceWorker.ready;
+            // VAPID public key (replace with your actual key from env)
+            const vapidKey = 'BPK3tZcxZtJqBqHpN8fW8cX9EfVq1y2w3x4a5b6c7d8e9f0g1h2i3j4k5l6m7n8';
+            const sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidKey)
+            });
+            await fetch('/api/push/subscribe', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subscription: sub })
+            });
+        } catch (e) { console.warn('push subscription failed', e); }
+    }
+
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+        return outputArray;
+    }
+
+    window.onload = async () => {
+        await loadUser();
+        await loadData();
+        showSection('dashboard');
+        document.getElementById('logoutBtn').addEventListener('click', logout);
+        document.querySelectorAll('.nav-item[data-section]').forEach(btn => {
+            btn.addEventListener('click', () => showSection(btn.getAttribute('data-section')));
+        });
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(console.warn);
+            await setupPush();
+        }
+    };
+</script>
 </body>
 </html>
