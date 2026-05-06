@@ -9,6 +9,9 @@ const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const messageRoutes = require('./routes/messages');
+app.use('/api/messages', messageRoutes);
+
 // ==================== MIDDLEWARE ====================
 app.use(cors());
 app.use(express.json());
