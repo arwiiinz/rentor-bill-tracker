@@ -6,7 +6,16 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
 // Get all messages for current user
+// Add this helper at the top
+const crypto = require('crypto'); // already there? if not, add
+
+// Modify GET / to mark messages as read when recipient fetches them
 router.get('/', authMiddleware, async (req, res) => {
+    // Mark all messages sent to this user as read
+    await Message.updateMany(
+        { toUser: req.user.id, isRead: false },
+        { isRead: true }
+    );
     const query = {
         $or: [
             { fromUser: req.user.id },
