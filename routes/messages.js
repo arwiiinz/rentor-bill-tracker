@@ -111,4 +111,16 @@ router.get('/unread/count', authMiddleware, async (req, res) => {
     res.json({ unreadCount: count });
 });
 
+// Delete entire conversation? We'll handle deletion per message or per conversation.
+// Existing DELETE endpoint (works per message):
+router.delete('/:id', authMiddleware, async (req, res) => {
+    const msg = await Message.findById(req.params.id);
+    if (!msg) return res.status(404).json({ error: 'Not found' });
+    if (msg.fromUser.toString() !== req.user.id && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Not allowed' });
+    }
+    await msg.deleteOne();
+    res.json({ success: true });
+});
+
 module.exports = router;
