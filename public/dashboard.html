@@ -9,87 +9,18 @@
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#f9fafb">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-.btn-loading {
-    opacity: 0.6;
-    pointer-events: none;
-    position: relative;
-}
-.btn-loading::after {
-    content: "";
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    top: calc(50% - 8px);
-    right: 12px;
-    border: 2px solid white;
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.message-item {
-    padding: 1rem 0;
-    border-bottom: 1px solid #f0f2f5;
-}
-.message-item.unread {
-    background-color: #fefce8;
-    border-left: 3px solid #eab308;
-    padding-left: 0.75rem;
-}
-.message-meta {
-    font-size: 0.75rem;
-    color: #6b7280;
-    margin: 0.25rem 0;
-}
-.message-body {
-    margin: 0.5rem 0;
-    font-size: 0.9rem;
-}
-.message-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.7rem;
-}
-.seen-badge {
-    color: #15803d;
-}
-.delivered-badge {
-    color: #6b7280;
-}
-.reply-btn {
-    background: #f3f4f6;
-    border: none;
-    padding: 0.2rem 0.8rem;
-    border-radius: 20px;
-    cursor: pointer;
-}
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: #f5f7fb;
             color: #1f2937;
-            padding-bottom: 2rem;
+            padding-bottom: 5rem;
         }
-
-        /* Mobile-first layout */
-        .app {
-            max-width: 600px;
-            margin: 0 auto;
-            background: #ffffff;
-            min-height: 100vh;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.02);
-        }
-
+        .app { max-width: 600px; margin: 0 auto; background: #ffffff; min-height: 100vh; box-shadow: 0 0 20px rgba(0,0,0,0.02); }
         /* Header */
         .header {
             background: #ffffff;
-            padding: 1.2rem 1.25rem 0.8rem 1.25rem;
+            padding: 1.2rem 1.25rem 0.8rem;
             border-bottom: 1px solid #f0f2f5;
             position: sticky;
             top: 0;
@@ -97,36 +28,11 @@
             background: rgba(255,255,255,0.96);
             backdrop-filter: blur(8px);
         }
-
-        .welcome-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-        }
-
-        .greeting h2 {
-            font-size: 1.4rem;
-            font-weight: 600;
-            letter-spacing: -0.3px;
-        }
-
-        .greeting p {
-            font-size: 0.8rem;
-            color: #6b7280;
-        }
-
-        .role-badge {
-            background: #f0f4fe;
-            padding: 0.25rem 0.75rem;
-            border-radius: 40px;
-            font-size: 0.7rem;
-            font-weight: 600;
-            color: #2c3e8f;
-        }
-
-        /* Bottom navigation (mobile) */
+        .welcome-row { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem; }
+        .greeting h2 { font-size: 1.4rem; font-weight: 600; letter-spacing: -0.3px; }
+        .greeting p { font-size: 0.8rem; color: #6b7280; }
+        .role-badge { background: #f0f4fe; padding: 0.25rem 0.75rem; border-radius: 40px; font-size: 0.7rem; font-weight: 600; color: #2c3e8f; }
+        /* Bottom navigation */
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -137,12 +43,11 @@
             border-top: 1px solid #f0f2f5;
             display: flex;
             justify-content: space-around;
-            padding: 0.65rem 1rem 1rem 1rem;
+            padding: 0.65rem 1rem 1rem;
             max-width: 600px;
             margin: 0 auto;
             z-index: 20;
         }
-
         .nav-item {
             display: flex;
             flex-direction: column;
@@ -157,90 +62,32 @@
             cursor: pointer;
             font-weight: 500;
         }
-
-        .nav-item i {
-            font-size: 1.4rem;
-        }
-
-        .nav-item.active {
-            color: #2c3e8f;
-        }
-
-        /* main content */
-        .main-content {
-            padding: 1.25rem 1.25rem 5rem 1.25rem;
-        }
-
-        /* cards */
+        .nav-item i { font-size: 1.4rem; }
+        .nav-item.active { color: #2c3e8f; }
+        /* Main content */
+        .main-content { padding: 1.25rem 1.25rem 5rem; }
+        /* Cards */
         .card {
             background: #ffffff;
             border-radius: 28px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.03);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03);
             border: 1px solid #f0f2f5;
             margin-bottom: 1.5rem;
             overflow: hidden;
         }
-
-        .card-header {
-            padding: 1rem 1.25rem;
-            font-weight: 600;
-            border-bottom: 1px solid #f0f2f5;
-            background: #fefefe;
-        }
-
-        .card-body {
-            padding: 1.2rem 1.25rem;
-        }
-
-        /* stats grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 0.75rem;
-        }
-
-        .stat-card {
-            background: #f9fafb;
-            border-radius: 20px;
-            padding: 1rem 0.5rem;
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 1.6rem;
-            font-weight: 700;
-            color: #1f2937;
-        }
-
-        .stat-label {
-            font-size: 0.7rem;
-            color: #6b7280;
-            margin-top: 0.25rem;
-        }
-
-        /* tables / list */
-        .bill-item, .message-item, .user-item {
-            padding: 0.9rem 0;
-            border-bottom: 1px solid #f0f2f5;
-        }
-
-        .bill-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .badge {
-            padding: 0.2rem 0.7rem;
-            border-radius: 40px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-
+        .card-header { padding: 1rem 1.25rem; font-weight: 600; border-bottom: 1px solid #f0f2f5; background: #fefefe; }
+        .card-body { padding: 1.2rem 1.25rem; }
+        /* Stats */
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+        .stat-card { background: #f9fafb; border-radius: 20px; padding: 1rem 0.5rem; text-align: center; }
+        .stat-number { font-size: 1.6rem; font-weight: 700; color: #1f2937; }
+        .stat-label { font-size: 0.7rem; color: #6b7280; }
+        /* Bill items */
+        .bill-item, .user-item { padding: 0.9rem 0; border-bottom: 1px solid #f0f2f5; }
+        .bill-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .badge { padding: 0.2rem 0.7rem; border-radius: 40px; font-size: 0.7rem; font-weight: 600; }
         .badge-pending { background: #fff3e0; color: #b45309; }
         .badge-paid { background: #e3f7ec; color: #15803d; }
-
         button.small {
             background: none;
             border: none;
@@ -249,8 +96,8 @@
             padding: 0.3rem 0.8rem;
             border-radius: 40px;
             background: #f3f4f6;
+            cursor: pointer;
         }
-
         button.primary-btn {
             background: #2c3e8f;
             color: white;
@@ -258,9 +105,9 @@
             border-radius: 40px;
             border: none;
             font-weight: 500;
+            cursor: pointer;
         }
-
-        form input, form select, form textarea {
+        input, select, textarea {
             width: 100%;
             padding: 0.75rem 1rem;
             border: 1px solid #e5e7eb;
@@ -268,13 +115,59 @@
             margin-bottom: 1rem;
             font-family: inherit;
         }
-
-        .empty-state {
-            text-align: center;
-            padding: 2rem;
-            color: #9ca3af;
+        .empty-state { text-align: center; padding: 2rem; color: #9ca3af; }
+        /* Conversation styles */
+        .conversation-item {
+            border-bottom: 1px solid #f0f2f5;
+            margin-bottom: 0.5rem;
         }
-
+        .conversation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            cursor: pointer;
+        }
+        .conversation-messages {
+            margin-top: 0.5rem;
+            padding-left: 0.75rem;
+            border-left: 2px solid #e5e7eb;
+        }
+        .message-bubble {
+            background: #f9fafb;
+            border-radius: 18px;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .message-bubble.outgoing {
+            background: #eef2ff;
+        }
+        .message-status {
+            font-size: 0.7rem;
+            margin-top: 0.25rem;
+            text-align: right;
+        }
+        .reply-area {
+            margin: 0.75rem 0 1rem;
+        }
+        .reply-text {
+            margin-bottom: 0.5rem;
+        }
+        .delete-conv-btn {
+            background: none;
+            border: none;
+            color: #dc2626;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .btn-loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        .spinner {
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 480px) {
             .stat-number { font-size: 1.4rem; }
             .card-header { padding: 0.8rem 1rem; }
@@ -293,12 +186,9 @@
             <div class="role-badge" id="roleBadge"></div>
         </div>
     </div>
-
     <div class="main-content" id="mainContent">
-        <!-- dynamic views will be injected here -->
         <div class="card"><div class="card-body">Loading...</div></div>
     </div>
-
     <div class="bottom-nav">
         <button class="nav-item" data-section="dashboard"><i class="fas fa-chart-simple"></i><span>Home</span></button>
         <button class="nav-item" data-section="bills"><i class="fas fa-receipt"></i><span>Bills</span></button>
@@ -310,31 +200,35 @@
 </div>
 
 <script>
-    // --- global variables ---
+    // --- globals ---
     const token = localStorage.getItem('token');
     if (!token) window.location.href = '/';
     let currentUser = null;
     let allClients = [];
     let allBills = [];
 
-    // --- helper functions ---
+    // --- API helpers (with generic error handling)---
     async function apiGet(url) {
         const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error((await res.json()).error || 'Request failed');
         return res.json();
     }
-
     async function apiPost(url, body) {
         const res = await fetch(url, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw new Error((await res.json()).error || 'Request failed');
+        return res.json();
+    }
+    async function apiDelete(url) {
+        const res = await fetch(url, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error((await res.json()).error || 'Delete failed');
         return res.json();
     }
 
-    // --- load user ---
+    // --- load current user ---
     async function loadUser() {
         try {
             currentUser = await apiGet('/api/users/me');
@@ -342,7 +236,6 @@
             document.getElementById('welcomeMessage').innerHTML = `👋 ${currentUser.name.split(' ')[0]}`;
             document.getElementById('userDetail').innerHTML = `${currentUser.room ? `Rm ${currentUser.room} · ` : ''}${currentUser.role === 'client' ? 'Tenant' : currentUser.role}`;
             document.getElementById('roleBadge').innerText = currentUser.role.toUpperCase();
-
             if (currentUser.role === 'admin') {
                 document.getElementById('adminNavBtn').style.display = 'flex';
                 document.getElementById('specialNavBtn').style.display = 'flex';
@@ -361,12 +254,12 @@
         } catch(e) { console.warn(e); }
     }
 
-    // --- render functions (minimalist)---
+    // --- Dashboard (stat cards) ---
     function renderDashboard(container) {
         const pending = allBills.filter(b => b.status === 'pending').length;
         const paid = allBills.filter(b => b.status === 'paid').length;
         const totalDue = allBills.filter(b => b.status === 'pending').reduce((s,b) => s + b.amount, 0);
-        const recentBills = allBills.slice(0, 5);
+        const recent = allBills.slice(0, 5);
         container.innerHTML = `
             <div class="stats-grid">
                 <div class="stat-card"><div class="stat-number">${pending}</div><div class="stat-label">Pending</div></div>
@@ -374,30 +267,27 @@
                 <div class="stat-card"><div class="stat-number">₱${totalDue.toLocaleString()}</div><div class="stat-label">Due</div></div>
             </div>
             <div class="card"><div class="card-header">📋 Recent bills</div><div class="card-body">
-                ${recentBills.length ? recentBills.map(bill => `
-                    <div class="bill-item">
-                        <div class="bill-row">
-                            <span><strong>${bill.description}</strong><br><small>Due ${new Date(bill.dueDate).toLocaleDateString()}</small></span>
-                            <span>₱${bill.amount.toLocaleString()} <span class="badge ${bill.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${bill.status}</span></span>
-                        </div>
-                    </div>
+                ${recent.length ? recent.map(b => `
+                    <div class="bill-item"><div class="bill-row">
+                        <span><strong>${b.description}</strong><br><small>Due ${new Date(b.dueDate).toLocaleDateString()}</small></span>
+                        <span>₱${b.amount.toLocaleString()} <span class="badge ${b.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${b.status}</span></span>
+                    </div></div>
                 `).join('') : '<div class="empty-state">No bills yet</div>'}
             </div></div>
         `;
     }
 
+    // --- Bills list ---
     function renderBills(container) {
         container.innerHTML = `
             <div class="card"><div class="card-header">💰 All bills</div><div class="card-body">
-                ${allBills.length ? allBills.map(bill => `
-                    <div class="bill-item">
-                        <div class="bill-row">
-                            <div><strong>${bill.description}</strong><br><small>${bill.clientId?.name || 'Tenant'} · ${new Date(bill.dueDate).toLocaleDateString()}</small></div>
-                            <div>₱${bill.amount.toLocaleString()} <span class="badge ${bill.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${bill.status}</span>
-                            ${bill.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special') ? `<button class="small" onclick="markPaid('${bill._id}')">✔ Mark paid</button>` : ''}
-                            </div>
+                ${allBills.length ? allBills.map(b => `
+                    <div class="bill-item"><div class="bill-row">
+                        <div><strong>${b.description}</strong><br><small>${b.clientId?.name || 'Tenant'} · ${new Date(b.dueDate).toLocaleDateString()}</small></div>
+                        <div>₱${b.amount.toLocaleString()} <span class="badge ${b.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${b.status}</span>
+                        ${b.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special') ? `<button class="small" onclick="markPaid('${b._id}')">✔ Mark paid</button>` : ''}
                         </div>
-                    </div>
+                    </div></div>
                 `).join('') : '<div class="empty-state">No bills found</div>'}
             </div></div>
         `;
@@ -412,13 +302,11 @@
         } catch(e) { alert('Error'); }
     };
 
-    // simplified user management only for admin
+    // --- Users management (admin) ---
     function renderUsers(container) {
         container.innerHTML = `
             <div class="card"><div class="card-header">👥 Tenants & staff</div><div class="card-body">
-                ${allClients.map(u => `
-                    <div class="user-item"><div><strong>${u.name}</strong> (${u.username})<br><small>${u.room ? `Rm ${u.room} Lv.${u.level}` : ''} · ${u.role}</small></div></div>
-                `).join('')}
+                ${allClients.map(u => `<div class="user-item"><div><strong>${u.name}</strong> (${u.username})<br><small>${u.room ? `Rm ${u.room} Lv.${u.level}` : ''} · ${u.role}</small></div></div>`).join('')}
             </div></div>
             <div class="card"><div class="card-header">➕ Register new tenant</div><div class="card-body">
                 <form id="registerFormSimple">
@@ -427,30 +315,36 @@
                     <input type="password" placeholder="Password" id="regPass" required>
                     <input type="text" placeholder="Room (e.g. 204)" id="regRoom" required>
                     <input type="text" placeholder="Level (e.g. 2nd)" id="regLevel" required>
-                    <button class="primary-btn" style="width:100%">Create tenant account</button>
+                    <button class="primary-btn" type="submit" id="createTenantBtn">Create tenant account</button>
                 </form>
             </div></div>
         `;
-        document.getElementById('registerFormSimple')?.addEventListener('submit', async (e) => {
+        const form = document.getElementById('registerFormSimple');
+        form?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const payload = {
-                username: document.getElementById('regUsername').value,
-                password: document.getElementById('regPass').value,
-                name: document.getElementById('regName').value,
-                role: 'client',
-                room: document.getElementById('regRoom').value,
-                level: document.getElementById('regLevel').value,
-                dueDay: null
-            };
+            const btn = document.getElementById('createTenantBtn');
+            const original = btn.innerText;
+            btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Creating...';
+            btn.disabled = true;
             try {
+                const payload = {
+                    username: document.getElementById('regUsername').value,
+                    password: document.getElementById('regPass').value,
+                    name: document.getElementById('regName').value,
+                    role: 'client',
+                    room: document.getElementById('regRoom').value,
+                    level: document.getElementById('regLevel').value,
+                    dueDay: null
+                };
                 await apiPost('/api/users', payload);
                 alert('Tenant created');
                 await loadData();
                 showSection('users');
-            } catch(err) { alert(err.message); }
+            } catch(err) { alert(err.message); btn.innerHTML = original; btn.disabled = false; }
         });
     }
 
+    // --- Add bill form (admin/special) ---
     function renderAddBill(container) {
         container.innerHTML = `
             <div class="card"><div class="card-header">➕ Add new bill</div><div class="card-body">
@@ -459,12 +353,17 @@
                     <input type="text" placeholder="Description (e.g. Rent Sep)" id="descSimple" required>
                     <input type="number" placeholder="Amount (₱)" id="amountSimple" required>
                     <input type="date" id="dueDateSimple" required>
-                    <button class="primary-btn">Create bill</button>
+                    <button class="primary-btn" type="submit" id="createBillBtn">Create bill</button>
                 </form>
             </div></div>
         `;
-        document.getElementById('billFormSimple')?.addEventListener('submit', async (e) => {
+        const form = document.getElementById('billFormSimple');
+        form?.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const btn = document.getElementById('createBillBtn');
+            const original = btn.innerText;
+            btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Creating...';
+            btn.disabled = true;
             const data = {
                 clientId: document.getElementById('clientIdSimple').value,
                 description: document.getElementById('descSimple').value,
@@ -475,128 +374,149 @@
                 await apiPost('/api/bills', data);
                 await loadData();
                 showSection('bills');
-            } catch(err) { alert(err.message); }
+            } catch(err) { alert(err.message); btn.innerHTML = original; btn.disabled = false; }
         });
     }
 
-    // --- messages (simple version) ---
-async function renderMessages(container) {
-    try {
-        const messages = await apiGet('/api/messages'); // auto-marks as read on server
-        container.innerHTML = `
-            <div class="card">
-                <div class="card-header">✉️ Conversations</div>
-                <div class="card-body" id="messagesList">
-                    ${messages.length ? messages.map(m => `
-                        <div class="message-item ${!m.isRead && m.toUser?._id === currentUser?.id ? 'unread' : ''}" data-msg-id="${m._id}">
-                            <div style="display:flex; justify-content:space-between;">
-                                <strong>${m.subject}</strong>
-                                <small>${new Date(m.createdAt).toLocaleString()}</small>
-                            </div>
-                            <div class="message-meta">
-                                <i class="fas fa-user"></i> 
-                                <strong>${m.fromUser?.name || m.fromUser?.username}</strong> 
-                                → ${m.toUser?.name || m.toUser?.username}
-                            </div>
-                            <p class="message-body">${m.message}</p>
-                            <div class="message-footer">
-                                ${m.isRead ? '<span class="seen-badge"><i class="fas fa-check-double"></i> Seen</span>' : '<span class="delivered-badge"><i class="fas fa-check"></i> Delivered</span>'}
-                                ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
-                                    `<button class="small reply-btn" data-id="${m._id}">Reply</button>` : ''}
+    // ==================== MESSAGING (grouped conversations) ====================
+    async function renderMessages(container) {
+        container.innerHTML = `<div class="card"><div class="card-body text-center"><i class="fas fa-spinner fa-pulse"></i> Loading messages...</div></div>`;
+        try {
+            const messages = await apiGet('/api/messages'); // server marks received messages as read
+            // group by other participant
+            const conversations = new Map();
+            for (const msg of messages) {
+                const other = msg.fromUser._id === currentUser.id ? msg.toUser : msg.fromUser;
+                if (!other) continue;
+                const key = other._id;
+                if (!conversations.has(key)) {
+                    conversations.set(key, { user: other, messages: [] });
+                }
+                conversations.get(key).messages.push(msg);
+            }
+            if (conversations.size === 0) {
+                container.innerHTML = `
+                    <div class="card"><div class="card-header">💬 Messages</div><div class="card-body"><div class="empty-state">No conversations yet. Send a message below.</div></div></div>
+                    <div class="card"><div class="card-header">New Message</div><div class="card-body">${composeFormHtml()}</div></div>
+                `;
+                attachComposeHandler();
+                return;
+            }
+            let convHtml = '';
+            for (let [userId, conv] of conversations) {
+                const unread = conv.messages.filter(m => !m.isRead && m.toUser?._id === currentUser.id).length;
+                convHtml += `
+                    <div class="conversation-item" data-user-id="${userId}" data-username="${conv.user.username}" data-user-name="${conv.user.name}">
+                        <div class="conversation-header">
+                            <div><strong>${conv.user.name}</strong> <span class="text-muted">(@${conv.user.username})</span>${unread ? `<span class="badge bg-danger rounded-pill ms-2">${unread}</span>` : ''}</div>
+                            <button class="delete-conv-btn" data-user-id="${userId}"><i class="fas fa-trash"></i></button>
+                        </div>
+                        <div class="conversation-messages" style="display:none;">
+                            ${conv.messages.map(msg => `
+                                <div class="message-bubble ${msg.fromUser._id === currentUser.id ? 'outgoing' : 'incoming'}">
+                                    <div><small><strong>${msg.fromUser.name}</strong> · ${new Date(msg.createdAt).toLocaleString()}</small></div>
+                                    <div>${msg.message}</div>
+                                    <div class="message-status">
+                                        ${msg.fromUser._id === currentUser.id ? (msg.isRead ? '<i class="fas fa-check-double" style="color:#15803d;"></i> Seen' : '<i class="fas fa-check"></i> Delivered') : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                            <div class="reply-area">
+                                <textarea class="reply-text" rows="2" placeholder="Type your reply..."></textarea>
+                                <button class="small send-reply-btn" data-user-id="${userId}">Send Reply</button>
                             </div>
                         </div>
-                    `).join('') : '<div class="empty-state">No messages yet</div>'}
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-header">Send a message</div>
-                <div class="card-body">
-                    <form id="msgForm">
-                        <input type="text" placeholder="To (username)" id="msgTo" required ${currentUser.role === 'client' ? 'value="admin"' : ''}>
-                        <input type="text" placeholder="Subject" id="msgSubject" required>
-                        <textarea rows="2" placeholder="Message" id="msgBody" required></textarea>
-                        <button class="primary-btn">Send</button>
-                    </form>
-                </div>
-            </div>
-        `;
+                    </div>
+                `;
+            }
+            container.innerHTML = `
+                <div class="card"><div class="card-header">💬 Conversations</div><div class="card-body">${convHtml}</div></div>
+                <div class="card"><div class="card-header">New Message</div><div class="card-body">${composeFormHtml()}</div></div>
+            `;
+            attachConversationHandlers();
+            attachComposeHandler();
+        } catch (err) {
+            container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+        }
+    }
 
-        // Attach reply handlers
-        document.querySelectorAll('.reply-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const msgId = btn.getAttribute('data-id');
-                const replyText = prompt('Type your reply:');
-                if (!replyText) return;
-                try {
-                    await apiPost(`/api/messages/${msgId}/reply`, { message: replyText });
-                    alert('Reply sent');
-                    showSection('messages');
-                } catch(err) { alert(err.message); }
+    function composeFormHtml() {
+        return `
+            <form id="msgForm">
+                <input type="text" placeholder="To (username)" id="msgTo" required ${currentUser.role === 'client' ? 'value="admin"' : ''}>
+                <input type="text" placeholder="Subject" id="msgSubject" required>
+                <textarea rows="2" placeholder="Message" id="msgBody" required></textarea>
+                <button class="primary-btn" type="submit" id="sendMsgBtn">Send Message</button>
+            </form>
+        `;
+    }
+
+    function attachConversationHandlers() {
+        // toggle conversation open/close
+        document.querySelectorAll('.conversation-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                if (e.target.closest('.delete-conv-btn')) return;
+                const convDiv = header.closest('.conversation-item').querySelector('.conversation-messages');
+                if (convDiv) convDiv.style.display = convDiv.style.display === 'none' ? 'block' : 'none';
             });
         });
+        // delete entire conversation
+        document.querySelectorAll('.delete-conv-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (!confirm('Delete this entire conversation? This cannot be undone.')) return;
+                const userId = btn.getAttribute('data-user-id');
+                btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
+                btn.disabled = true;
+                try {
+                    await apiDelete(`/api/messages/conversation/${userId}`);
+                    showSection('messages');
+                } catch(err) { alert(err.message); btn.innerHTML = '<i class="fas fa-trash"></i>'; btn.disabled = false; }
+            });
+        });
+        // send reply
+        document.querySelectorAll('.send-reply-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const userId = btn.getAttribute('data-user-id');
+                const convItem = btn.closest('.conversation-item');
+                const recipientUsername = convItem.getAttribute('data-username');
+                const textarea = btn.closest('.reply-area')?.querySelector('.reply-text');
+                const reply = textarea?.value.trim();
+                if (!reply) return;
+                btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Sending...';
+                btn.disabled = true;
+                try {
+                    await apiPost('/api/messages', { toUsername: recipientUsername, subject: 'Reply', message: reply });
+                    textarea.value = '';
+                    showSection('messages');
+                } catch(err) { alert(err.message); btn.innerHTML = 'Send Reply'; btn.disabled = false; }
+            });
+        });
+    }
 
-        // Handle new message form
-        document.getElementById('msgForm')?.addEventListener('submit', async (e) => {
+    function attachComposeHandler() {
+        const form = document.getElementById('msgForm');
+        if (!form) return;
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const to = document.getElementById('msgTo').value.trim();
             const subject = document.getElementById('msgSubject').value.trim();
             const message = document.getElementById('msgBody').value.trim();
             if (!to || !subject || !message) return;
+            const sendBtn = document.getElementById('sendMsgBtn');
+            const originalText = sendBtn.innerText;
+            sendBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Sending...';
+            sendBtn.disabled = true;
             try {
                 await apiPost('/api/messages', { toUsername: to, subject, message });
-                alert('Message sent');
                 document.getElementById('msgSubject').value = '';
                 document.getElementById('msgBody').value = '';
                 showSection('messages');
-            } catch(err) { alert(err.message); }
+            } catch(err) { alert(err.message); sendBtn.innerHTML = originalText; sendBtn.disabled = false; }
         });
-    } catch(e) {
-        container.innerHTML = `<div class="alert">Error loading messages: ${e.message}</div>`;
-    }
-}
-
-    // --- section switcher ---
-    async function showSection(section) {
-        const container = document.getElementById('mainContent');
-        await loadData(); // refresh bills/clients
-        if (section === 'dashboard') renderDashboard(container);
-        else if (section === 'bills') renderBills(container);
-        else if (section === 'users' && (currentUser.role === 'admin')) renderUsers(container);
-        else if (section === 'addBill' && (currentUser.role === 'admin' || currentUser.role === 'special')) renderAddBill(container);
-        else if (section === 'messages') renderMessages(container);
-        else renderDashboard(container);
-        // update active nav style
-        document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
-        const activeBtn = document.querySelector(`.nav-item[data-section="${section}"]`);
-        if (activeBtn) activeBtn.classList.add('active');
     }
 
-    function logout() {
-        localStorage.clear();
-        window.location.href = '/';
-    }
-
-    // --- init & service worker / push setup---
-    async function setupPush() {
-        if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') return;
-        try {
-            const reg = await navigator.serviceWorker.ready;
-            // VAPID public key (replace with your actual key from env)
-            const vapidKey = 'BPK3tZcxZtJqBqHpN8fW8cX9EfVq1y2w3x4a5b6c7d8e9f0g1h2i3j4k5l6m7n8';
-            const sub = await reg.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(vapidKey)
-            });
-            await fetch('/api/push/subscribe', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ subscription: sub })
-            });
-        } catch (e) { console.warn('push subscription failed', e); }
-    }
-
+    // --- Push notifications setup (requires VAPID keys) ---
     function urlBase64ToUint8Array(base64String) {
         const padding = '='.repeat((4 - base64String.length % 4) % 4);
         const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -605,6 +525,43 @@ async function renderMessages(container) {
         for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
         return outputArray;
     }
+    async function setupPush() {
+        if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+        let permission = Notification.permission;
+        if (permission !== 'granted') permission = await Notification.requestPermission();
+        if (permission !== 'granted') return;
+        try {
+            const reg = await navigator.serviceWorker.ready;
+            // Replace with your actual VAPID public key from environment
+            const VAPID_PUBLIC_KEY = 'BPK3tZcxZtJqBqHpN8fW8cX9EfVq1y2w3x4a5b6c7d8e9f0g1h2i3j4k5l6m7n8';
+            const subscription = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+            });
+            await fetch('/api/push/subscribe', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subscription })
+            });
+        } catch(e) { console.warn('Push subscription failed', e); }
+    }
+
+    // --- navigation & helpers ---
+    async function showSection(section) {
+        const container = document.getElementById('mainContent');
+        await loadData(); // refresh bills & clients
+        if (section === 'dashboard') renderDashboard(container);
+        else if (section === 'bills') renderBills(container);
+        else if (section === 'users' && (currentUser.role === 'admin')) renderUsers(container);
+        else if (section === 'addBill' && (currentUser.role === 'admin' || currentUser.role === 'special')) renderAddBill(container);
+        else if (section === 'messages') await renderMessages(container);
+        else renderDashboard(container);
+        document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+        const activeBtn = document.querySelector(`.nav-item[data-section="${section}"]`);
+        if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    function logout() { localStorage.clear(); window.location.href = '/'; }
 
     window.onload = async () => {
         await loadUser();
