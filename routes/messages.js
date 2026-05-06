@@ -123,4 +123,16 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     res.json({ success: true });
 });
 
+
+// Delete entire conversation between current user and another user
+router.delete('/conversation/:userId', authMiddleware, async (req, res) => {
+    const otherUserId = req.params.userId;
+    await Message.deleteMany({
+        $or: [
+            { fromUser: req.user.id, toUser: otherUserId },
+            { fromUser: otherUserId, toUser: req.user.id }
+        ]
+    });
+    res.json({ success: true, message: 'Conversation deleted' });
+});
 module.exports = router;
