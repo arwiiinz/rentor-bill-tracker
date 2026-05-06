@@ -1,164 +1,105 @@
 const express = require('express');
 const Message = require('../models/Message');
 const User = require('../models/User');
-const { authMiddleware, adminOnly } = require('../middleware/auth');
+const { authMiddleware } = require('../middleware/auth');
+
 const router = express.Router();
 
 // Get all messages for current user
 router.get('/', authMiddleware, async (req, res) => {
-  try {
-    let query;
-    if (req.user.role === 'admin' || req.user.role === 'special') {
-      // Admins see all messages (sent to or from them)
-      query = {
+    const query = {
         $or: [
-          { toUser: req.user.id },
-          { fromUser: req.user.id }
+            { fromUser: req.user.id },
+            { toUser: req.user.id }
         ]
-      };
-    } else {
-      // Clients only see their own messages (sent and replies)
-      query = {
-        $or: [
-          { fromUser: req.user.id },
-          { toUser: req.user.id }
-        ]
-      };
-    }
-    
+    };
     const messages = await Message.find(query)
-      .populate('fromUser', 'name username role room level')
-      .populate('toUser', 'name username role room level')
-      .sort({ createdAt: -1 });
-    
+        .populate('fromUser', 'name username role')
+        .populate('toUser', 'name username role')
+        .sort({ createdAt: -1 });
     res.json(messages);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
 
-// Send a new message
+// Send new message
 router.post('/', authMiddleware, async (req, res) => {
-  try {
     const { toUsername, subject, message } = req.body;
-    
-    if (!toUsername || !subject || !message) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    
-    // Find recipient
     const recipient = await User.findOne({ username: toUsername });
-    if (!recipient) {
-      return res.status(404).json({ error: 'Recipient not found' });
-    }
-    
-    const newMessage = new Message({
-      fromUser: req.user.id,
-      toUser: recipient._id,
-      subject,
-      message,
-      isRead: false
+    if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
+
+    const newMsg = new Message({
+        fromUser: req.user.id,
+        toUser: recipient._id,
+        subject,
+        message
     });
-    
-    await newMessage.save();
-    await newMessage.populate('fromUser', 'name username role');
-    await newMessage.populate('toUser', 'name username role');
-    
-    res.status(201).json(newMessage);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+    await newMsg.save();
+    await newMsg.populate('fromUser', 'name username');
+    await newMsg.populate('toUser', 'name username');
+
+    // Send push notification to recipient
+    if (global.sendNotificationToUser) {
+        await global.sendNotificationToUser(
+            recipient._id,
+            '✉️ New Message',
+            `${req.user.username}: ${subject}`,
+            '/dashboard.html?section=messages'
+        );
+    }
+    res.status(201).json(newMsg);
 });
 
 // Reply to a message
 router.post('/:id/reply', authMiddleware, async (req, res) => {
-  try {
-    const { message } = req.body;
-    const originalMessage = await Message.findById(req.params.id);
-    
-    if (!originalMessage) {
-      return res.status(404).json({ error: 'Original message not found' });
-    }
-    
-    // Determine recipient (reply to the sender of original message)
-    const recipientId = originalMessage.fromUser.toString();
-    
+    const original = await Message.findById(req.params.id);
+    if (!original) return res.status(404).json({ error: 'Original not found' });
+
+    const recipientId = original.fromUser.toString();
     const reply = new Message({
-      fromUser: req.user.id,
-      toUser: recipientId,
-      subject: `Re: ${originalMessage.subject}`,
-      message: message,
-      replyTo: originalMessage._id,
-      isRead: false
+        fromUser: req.user.id,
+        toUser: recipientId,
+        subject: `Re: ${original.subject}`,
+        message: req.body.message,
+        replyTo: original._id
     });
-    
     await reply.save();
-    await reply.populate('fromUser', 'name username role');
-    await reply.populate('toUser', 'name username role');
-    
-    // Mark original as read (optional)
-    originalMessage.isRead = true;
-    await originalMessage.save();
-    
+    await reply.populate('fromUser', 'name username');
+    await reply.populate('toUser', 'name username');
+
+    if (global.sendNotificationToUser) {
+        await global.sendNotificationToUser(
+            recipientId,
+            '💬 Reply to your message',
+            `${req.user.username} replied to "${original.subject}"`,
+            '/dashboard.html?section=messages'
+        );
+    }
     res.status(201).json(reply);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
 
-// Mark message as read
+// Mark as read
 router.put('/:id/read', authMiddleware, async (req, res) => {
-  try {
-    const message = await Message.findById(req.params.id);
-    if (!message) {
-      return res.status(404).json({ error: 'Message not found' });
-    }
-    
-    // Only recipient can mark as read
-    if (message.toUser.toString() !== req.user.id) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-    
-    message.isRead = true;
-    await message.save();
-    
-    res.json({ message: 'Marked as read' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+    const msg = await Message.findById(req.params.id);
+    if (msg.toUser.toString() !== req.user.id) return res.status(403).json({ error: 'Not allowed' });
+    msg.isRead = true;
+    await msg.save();
+    res.json({ success: true });
 });
 
-// Delete message (admin only or sender)
+// Delete message
 router.delete('/:id', authMiddleware, async (req, res) => {
-  try {
-    const message = await Message.findById(req.params.id);
-    if (!message) {
-      return res.status(404).json({ error: 'Message not found' });
+    const msg = await Message.findById(req.params.id);
+    if (!msg) return res.status(404).json({ error: 'Not found' });
+    if (msg.fromUser.toString() !== req.user.id && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Not allowed' });
     }
-    
-    // Allow admin or sender to delete
-    if (req.user.role !== 'admin' && message.fromUser.toString() !== req.user.id) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-    
-    await message.deleteOne();
-    res.json({ message: 'Message deleted' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+    await msg.deleteOne();
+    res.json({ success: true });
 });
 
-// Get unread count
+// Unread count
 router.get('/unread/count', authMiddleware, async (req, res) => {
-  try {
-    const count = await Message.countDocuments({
-      toUser: req.user.id,
-      isRead: false
-    });
+    const count = await Message.countDocuments({ toUser: req.user.id, isRead: false });
     res.json({ unreadCount: count });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
 
 module.exports = router;
