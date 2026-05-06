@@ -17,7 +17,6 @@
             padding-bottom: 5rem;
         }
         .app { max-width: 600px; margin: 0 auto; background: #ffffff; min-height: 100vh; box-shadow: 0 0 20px rgba(0,0,0,0.02); }
-        /* Header */
         .header {
             background: #ffffff;
             padding: 1.2rem 1.25rem 0.8rem;
@@ -32,7 +31,6 @@
         .greeting h2 { font-size: 1.4rem; font-weight: 600; letter-spacing: -0.3px; }
         .greeting p { font-size: 0.8rem; color: #6b7280; }
         .role-badge { background: #f0f4fe; padding: 0.25rem 0.75rem; border-radius: 40px; font-size: 0.7rem; font-weight: 600; color: #2c3e8f; }
-        /* Bottom navigation */
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -64,9 +62,7 @@
         }
         .nav-item i { font-size: 1.4rem; }
         .nav-item.active { color: #2c3e8f; }
-        /* Main content */
         .main-content { padding: 1.25rem 1.25rem 5rem; }
-        /* Cards */
         .card {
             background: #ffffff;
             border-radius: 28px;
@@ -77,12 +73,10 @@
         }
         .card-header { padding: 1rem 1.25rem; font-weight: 600; border-bottom: 1px solid #f0f2f5; background: #fefefe; }
         .card-body { padding: 1.2rem 1.25rem; }
-        /* Stats */
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
         .stat-card { background: #f9fafb; border-radius: 20px; padding: 1rem 0.5rem; text-align: center; }
         .stat-number { font-size: 1.6rem; font-weight: 700; color: #1f2937; }
         .stat-label { font-size: 0.7rem; color: #6b7280; }
-        /* Bill items */
         .bill-item, .user-item { padding: 0.9rem 0; border-bottom: 1px solid #f0f2f5; }
         .bill-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
         .badge { padding: 0.2rem 0.7rem; border-radius: 40px; font-size: 0.7rem; font-weight: 600; }
@@ -116,11 +110,7 @@
             font-family: inherit;
         }
         .empty-state { text-align: center; padding: 2rem; color: #9ca3af; }
-        /* Conversation styles */
-        .conversation-item {
-            border-bottom: 1px solid #f0f2f5;
-            margin-bottom: 0.5rem;
-        }
+        .conversation-item { border-bottom: 1px solid #f0f2f5; margin-bottom: 0.5rem; }
         .conversation-header {
             display: flex;
             justify-content: space-between;
@@ -139,20 +129,10 @@
             padding: 0.75rem;
             margin-bottom: 0.75rem;
         }
-        .message-bubble.outgoing {
-            background: #eef2ff;
-        }
-        .message-status {
-            font-size: 0.7rem;
-            margin-top: 0.25rem;
-            text-align: right;
-        }
-        .reply-area {
-            margin: 0.75rem 0 1rem;
-        }
-        .reply-text {
-            margin-bottom: 0.5rem;
-        }
+        .message-bubble.outgoing { background: #eef2ff; }
+        .message-status { font-size: 0.7rem; margin-top: 0.25rem; text-align: right; }
+        .reply-area { margin: 0.75rem 0 1rem; }
+        .reply-text { margin-bottom: 0.5rem; }
         .delete-conv-btn {
             background: none;
             border: none;
@@ -160,13 +140,13 @@
             cursor: pointer;
             font-size: 1rem;
         }
-        .btn-loading {
-            opacity: 0.6;
-            pointer-events: none;
+        .loading-spinner {
+            text-align: center;
+            padding: 3rem;
+            color: #9ca3af;
         }
-        .spinner {
-            animation: spin 0.6s linear infinite;
-        }
+        .btn-loading { opacity: 0.6; pointer-events: none; }
+        .spinner { animation: spin 0.6s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 480px) {
             .stat-number { font-size: 1.4rem; }
@@ -187,7 +167,7 @@
         </div>
     </div>
     <div class="main-content" id="mainContent">
-        <div class="card"><div class="card-body">Loading...</div></div>
+        <div class="loading-spinner"><i class="fas fa-spinner fa-pulse fa-2x"></i><br>Loading...</div>
     </div>
     <div class="bottom-nav">
         <button class="nav-item" data-section="dashboard"><i class="fas fa-chart-simple"></i><span>Home</span></button>
@@ -207,7 +187,7 @@
     let allClients = [];
     let allBills = [];
 
-    // --- API helpers (with generic error handling)---
+    // --- API helpers ---
     async function apiGet(url) {
         const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
         if (!res.ok) throw new Error((await res.json()).error || 'Request failed');
@@ -247,14 +227,16 @@
 
     async function loadData() {
         try {
-            const clientsRes = await apiGet('/api/users/clients');
+            const [clientsRes, billsRes] = await Promise.all([
+                apiGet('/api/users/clients'),
+                apiGet('/api/bills')
+            ]);
             allClients = clientsRes;
-            const billsRes = await apiGet('/api/bills');
             allBills = billsRes;
         } catch(e) { console.warn(e); }
     }
 
-    // --- Dashboard (stat cards) ---
+    // --- Render functions (they receive container and use global data) ---
     function renderDashboard(container) {
         const pending = allBills.filter(b => b.status === 'pending').length;
         const paid = allBills.filter(b => b.status === 'paid').length;
@@ -277,7 +259,6 @@
         `;
     }
 
-    // --- Bills list ---
     function renderBills(container) {
         container.innerHTML = `
             <div class="card"><div class="card-header">💰 All bills</div><div class="card-body">
@@ -302,7 +283,6 @@
         } catch(e) { alert('Error'); }
     };
 
-    // --- Users management (admin) ---
     function renderUsers(container) {
         container.innerHTML = `
             <div class="card"><div class="card-header">👥 Tenants & staff</div><div class="card-body">
@@ -344,7 +324,6 @@
         });
     }
 
-    // --- Add bill form (admin/special) ---
     function renderAddBill(container) {
         container.innerHTML = `
             <div class="card"><div class="card-header">➕ Add new bill</div><div class="card-body">
@@ -380,18 +359,15 @@
 
     // ==================== MESSAGING (grouped conversations) ====================
     async function renderMessages(container) {
-        container.innerHTML = `<div class="card"><div class="card-body text-center"><i class="fas fa-spinner fa-pulse"></i> Loading messages...</div></div>`;
+        container.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-pulse fa-2x"></i><br>Loading messages...</div>`;
         try {
-            const messages = await apiGet('/api/messages'); // server marks received messages as read
-            // group by other participant
+            const messages = await apiGet('/api/messages');
             const conversations = new Map();
             for (const msg of messages) {
                 const other = msg.fromUser._id === currentUser.id ? msg.toUser : msg.fromUser;
                 if (!other) continue;
                 const key = other._id;
-                if (!conversations.has(key)) {
-                    conversations.set(key, { user: other, messages: [] });
-                }
+                if (!conversations.has(key)) conversations.set(key, { user: other, messages: [] });
                 conversations.get(key).messages.push(msg);
             }
             if (conversations.size === 0) {
@@ -452,7 +428,6 @@
     }
 
     function attachConversationHandlers() {
-        // toggle conversation open/close
         document.querySelectorAll('.conversation-header').forEach(header => {
             header.addEventListener('click', (e) => {
                 if (e.target.closest('.delete-conv-btn')) return;
@@ -460,11 +435,10 @@
                 if (convDiv) convDiv.style.display = convDiv.style.display === 'none' ? 'block' : 'none';
             });
         });
-        // delete entire conversation
         document.querySelectorAll('.delete-conv-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                if (!confirm('Delete this entire conversation? This cannot be undone.')) return;
+                if (!confirm('Delete this entire conversation?')) return;
                 const userId = btn.getAttribute('data-user-id');
                 btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
                 btn.disabled = true;
@@ -474,7 +448,6 @@
                 } catch(err) { alert(err.message); btn.innerHTML = '<i class="fas fa-trash"></i>'; btn.disabled = false; }
             });
         });
-        // send reply
         document.querySelectorAll('.send-reply-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const userId = btn.getAttribute('data-user-id');
@@ -504,7 +477,7 @@
             const message = document.getElementById('msgBody').value.trim();
             if (!to || !subject || !message) return;
             const sendBtn = document.getElementById('sendMsgBtn');
-            const originalText = sendBtn.innerText;
+            const original = sendBtn.innerText;
             sendBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Sending...';
             sendBtn.disabled = true;
             try {
@@ -512,11 +485,11 @@
                 document.getElementById('msgSubject').value = '';
                 document.getElementById('msgBody').value = '';
                 showSection('messages');
-            } catch(err) { alert(err.message); sendBtn.innerHTML = originalText; sendBtn.disabled = false; }
+            } catch(err) { alert(err.message); sendBtn.innerHTML = original; sendBtn.disabled = false; }
         });
     }
 
-    // --- Push notifications setup (requires VAPID keys) ---
+    // --- Push notifications (unchanged) ---
     function urlBase64ToUint8Array(base64String) {
         const padding = '='.repeat((4 - base64String.length % 4) % 4);
         const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -532,8 +505,7 @@
         if (permission !== 'granted') return;
         try {
             const reg = await navigator.serviceWorker.ready;
-            // Replace with your actual VAPID public key from environment
-            const VAPID_PUBLIC_KEY = 'BPK3tZcxZtJqBqHpN8fW8cX9EfVq1y2w3x4a5b6c7d8e9f0g1h2i3j4k5l6m7n8';
+            const VAPID_PUBLIC_KEY = 'BPK3tZcxZtJqBqHpN8fW8cX9EfVq1y2w3x4a5b6c7d8e9f0g1h2i3j4k5l6m7n8'; // replace with your actual key
             const subscription = await reg.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
@@ -546,16 +518,38 @@
         } catch(e) { console.warn('Push subscription failed', e); }
     }
 
-    // --- navigation & helpers ---
+    // --- Navigation with loading indicator ---
+    let isLoading = false;
     async function showSection(section) {
+        if (isLoading) return;
+        isLoading = true;
         const container = document.getElementById('mainContent');
-        await loadData(); // refresh bills & clients
-        if (section === 'dashboard') renderDashboard(container);
-        else if (section === 'bills') renderBills(container);
-        else if (section === 'users' && (currentUser.role === 'admin')) renderUsers(container);
-        else if (section === 'addBill' && (currentUser.role === 'admin' || currentUser.role === 'special')) renderAddBill(container);
-        else if (section === 'messages') await renderMessages(container);
-        else renderDashboard(container);
+        // Show spinner immediately
+        container.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-pulse fa-2x"></i><br>Loading ${section}...</div>`;
+
+        try {
+            // For dashboard, bills, users, addBill we need fresh bills/clients data.
+            // For messages, we also need fresh messages (but that's inside renderMessages).
+            if (section !== 'messages') {
+                await loadData();
+            } else {
+                // For messages we still need currentUser but not bills/clients.
+                // However loadData is cheap, we can still call it to keep data fresh.
+                await loadData(); // optional, but keeps other tabs fresh.
+            }
+
+            if (section === 'dashboard') renderDashboard(container);
+            else if (section === 'bills') renderBills(container);
+            else if (section === 'users' && (currentUser.role === 'admin')) renderUsers(container);
+            else if (section === 'addBill' && (currentUser.role === 'admin' || currentUser.role === 'special')) renderAddBill(container);
+            else if (section === 'messages') await renderMessages(container);
+            else renderDashboard(container);
+        } catch (err) {
+            container.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
+        } finally {
+            isLoading = false;
+        }
+        // Update active nav style
         document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
         const activeBtn = document.querySelector(`.nav-item[data-section="${section}"]`);
         if (activeBtn) activeBtn.classList.add('active');
