@@ -425,37 +425,80 @@
     }
 
     // --- messages (simple version) ---
-    async function renderMessages(container) {
-        let messages = [];
-        try { messages = await apiGet('/api/messages'); } catch(e) {}
+async function renderMessages(container) {
+    try {
+        const messages = await apiGet('/api/messages'); // auto-marks as read on server
         container.innerHTML = `
-            <div class="card"><div class="card-header">✉️ Conversations</div><div class="card-body">
-                ${messages.length ? messages.map(m => `
-                    <div class="message-item"><strong>${m.subject}</strong><br><small>${new Date(m.createdAt).toLocaleString()}</small>
-                    <p>${m.message}</p></div>
-                `).join('') : '<div class="empty-state">No messages</div>'}
-            </div></div>
-            <div class="card"><div class="card-header">Send a message</div><div class="card-body">
-                <form id="msgForm">
-                    <input type="text" placeholder="To (username)" id="msgTo" required value="admin">
-                    <input type="text" placeholder="Subject" id="msgSubject" required>
-                    <textarea rows="2" placeholder="Message" id="msgBody" required></textarea>
-                    <button class="primary-btn">Send</button>
-                </form>
-            </div></div>
+            <div class="card">
+                <div class="card-header">✉️ Conversations</div>
+                <div class="card-body" id="messagesList">
+                    ${messages.length ? messages.map(m => `
+                        <div class="message-item ${!m.isRead && m.toUser?._id === currentUser?.id ? 'unread' : ''}" data-msg-id="${m._id}">
+                            <div style="display:flex; justify-content:space-between;">
+                                <strong>${m.subject}</strong>
+                                <small>${new Date(m.createdAt).toLocaleString()}</small>
+                            </div>
+                            <div class="message-meta">
+                                <i class="fas fa-user"></i> 
+                                <strong>${m.fromUser?.name || m.fromUser?.username}</strong> 
+                                → ${m.toUser?.name || m.toUser?.username}
+                            </div>
+                            <p class="message-body">${m.message}</p>
+                            <div class="message-footer">
+                                ${m.isRead ? '<span class="seen-badge"><i class="fas fa-check-double"></i> Seen</span>' : '<span class="delivered-badge"><i class="fas fa-check"></i> Delivered</span>'}
+                                ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
+                                    `<button class="small reply-btn" data-id="${m._id}">Reply</button>` : ''}
+                            </div>
+                        </div>
+                    `).join('') : '<div class="empty-state">No messages yet</div>'}
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">Send a message</div>
+                <div class="card-body">
+                    <form id="msgForm">
+                        <input type="text" placeholder="To (username)" id="msgTo" required ${currentUser.role === 'client' ? 'value="admin"' : ''}>
+                        <input type="text" placeholder="Subject" id="msgSubject" required>
+                        <textarea rows="2" placeholder="Message" id="msgBody" required></textarea>
+                        <button class="primary-btn">Send</button>
+                    </form>
+                </div>
+            </div>
         `;
+
+        // Attach reply handlers
+        document.querySelectorAll('.reply-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const msgId = btn.getAttribute('data-id');
+                const replyText = prompt('Type your reply:');
+                if (!replyText) return;
+                try {
+                    await apiPost(`/api/messages/${msgId}/reply`, { message: replyText });
+                    alert('Reply sent');
+                    showSection('messages');
+                } catch(err) { alert(err.message); }
+            });
+        });
+
+        // Handle new message form
         document.getElementById('msgForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const to = document.getElementById('msgTo').value;
-            const subject = document.getElementById('msgSubject').value;
-            const message = document.getElementById('msgBody').value;
+            const to = document.getElementById('msgTo').value.trim();
+            const subject = document.getElementById('msgSubject').value.trim();
+            const message = document.getElementById('msgBody').value.trim();
+            if (!to || !subject || !message) return;
             try {
                 await apiPost('/api/messages', { toUsername: to, subject, message });
-                alert('Sent');
+                alert('Message sent');
+                document.getElementById('msgSubject').value = '';
+                document.getElementById('msgBody').value = '';
                 showSection('messages');
             } catch(err) { alert(err.message); }
         });
+    } catch(e) {
+        container.innerHTML = `<div class="alert">Error loading messages: ${e.message}</div>`;
     }
+}
 
     // --- section switcher ---
     async function showSection(section) {
