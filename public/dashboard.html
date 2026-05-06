@@ -14,7 +14,43 @@
             padding: 0;
             box-sizing: border-box;
         }
-
+.message-item {
+    padding: 1rem 0;
+    border-bottom: 1px solid #f0f2f5;
+}
+.message-item.unread {
+    background-color: #fefce8;
+    border-left: 3px solid #eab308;
+    padding-left: 0.75rem;
+}
+.message-meta {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin: 0.25rem 0;
+}
+.message-body {
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+}
+.message-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.7rem;
+}
+.seen-badge {
+    color: #15803d;
+}
+.delivered-badge {
+    color: #6b7280;
+}
+.reply-btn {
+    background: #f3f4f6;
+    border: none;
+    padding: 0.2rem 0.8rem;
+    border-radius: 20px;
+    cursor: pointer;
+}
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: #f5f7fb;
