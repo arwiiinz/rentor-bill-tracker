@@ -371,6 +371,10 @@ textarea {
     background: #eef2ff;
 }
 
+.avatar-wrapper {
+    position: relative;
+    display: inline-block;
+}
 .avatar {
     width: 44px;
     height: 44px;
@@ -384,17 +388,15 @@ textarea {
     font-size: 1.2rem;
     flex-shrink: 0;
 }
-
 .online-dot {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
     width: 12px;
     height: 12px;
     background: #22c55e;
     border-radius: 50%;
     border: 2px solid white;
-    position: relative;
-    top: -8px;
-    right: -28px;
-    margin-left: -8px;
 }
 
 .contact-info {
@@ -498,6 +500,9 @@ textarea {
 }
 
 /* Mobile full‑screen chat */
+/* ... keep all your existing styles up to .chat-input ... */
+
+/* Mobile full‑screen chat */
 @media (max-width: 600px) {
     .contacts-list {
         max-height: 40vh;
@@ -520,4 +525,41 @@ textarea {
     .back-to-contacts {
         margin: 0.5rem;
     }
+}
+
+/* Badge positioning – applies globally, not only on mobile */
+.bottom-nav .nav-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+#unreadBadge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #ef4444;
+    color: white;
+    border-radius: 9999px;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.6rem;
+    font-weight: 600;
+    min-width: 1.2rem;
+    text-align: center;
+    line-height: 1.2;
+    box-shadow: 0 0 0 1px white;
+    z-index: 1;
+}
+
+.unread-badge {
+    background: #ef4444;
+    color: white;
+    border-radius: 9999px;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.6rem;
+    font-weight: 600;
+    margin-left: 0.4rem;
+    vertical-align: middle;
 }
