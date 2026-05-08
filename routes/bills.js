@@ -5,6 +5,18 @@ const { authMiddleware, adminOrSpecial } = require('../middleware/auth');
 
 const router = express.Router();
 
+
+// Delete a bill (admin or special)
+router.delete('/:id', authMiddleware, adminOrSpecial, async (req, res) => {
+  try {
+    const bill = await Bill.findByIdAndDelete(req.params.id);
+    if (!bill) return res.status(404).json({ error: 'Bill not found' });
+    res.json({ message: 'Bill deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/', authMiddleware, async (req, res) => {
     let query = {};
     if (req.user.role === 'client') query.clientId = req.user.id;
