@@ -6,24 +6,25 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
 // GET /api/messages?withUserId=xxx (optional)
+
 router.get('/', authMiddleware, async (req, res) => {
     try {
-        let query = {};
         if (req.query.withUserId) {
-            query = {
+            // Mark all messages from the other user as read
+            await Message.updateMany(
+                { fromUser: req.query.withUserId, toUser: req.user.id, isRead: false },
+                { isRead: true }
+            );
+            const messages = await Message.find({
                 $or: [
                     { fromUser: req.user.id, toUser: req.query.withUserId },
                     { fromUser: req.query.withUserId, toUser: req.user.id }
                 ]
-            };
+            }).populate('fromUser toUser', 'name username').sort({ createdAt: 1 });
+            return res.json(messages);
         } else {
-            query = { $or: [{ fromUser: req.user.id }, { toUser: req.user.id }] };
+            // … existing code for all messages
         }
-  const messages = await Message.find(query)
-    .populate('fromUser', 'name username')
-    .populate('toUser', 'name username')
-    .sort({ createdAt: 1 });   // 1 = ascending (oldest first)
-        res.json(messages);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -79,5 +80,6 @@ router.delete('/conversation/:userId', authMiddleware, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
 
 module.exports = router;

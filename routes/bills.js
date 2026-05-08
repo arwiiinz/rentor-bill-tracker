@@ -67,4 +67,17 @@ router.delete('/:id', authMiddleware, adminOrSpecial, async (req, res) => {
     res.json({ message: 'Deleted' });
 });
 
+router.get('/:id', authMiddleware, async (req, res) => {
+    try {
+        const bill = await Bill.findById(req.params.id).populate('clientId', 'name username');
+        if (!bill) return res.status(404).json({ error: 'Bill not found' });
+        if (req.user.role !== 'admin' && bill.clientId._id.toString() !== req.user.id) {
+            return res.status(403).json({ error: 'Not authorized' });
+        }
+        res.json(bill);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
