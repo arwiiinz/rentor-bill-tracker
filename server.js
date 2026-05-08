@@ -20,9 +20,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 const User = require('./models/User');
 const Bill = require('./models/Bill');
 const Message = require('./models/Message');
+const ElectricityConfig = require('./models/ElectricityConfig');
 const PushSubscription = require('./models/PushSubscription');
+const MeterReading = require('./models/MeterReading');
+const BillTemplate = require('./models/BillTemplate');
 
-// Password helpers
+// ==================== Password Helper ====================
 const PASSWORD_SECRET = process.env.PASSWORD_SECRET || 'fallback-secret-change-this';
 function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString('hex');
@@ -40,7 +43,7 @@ function verifyPassword(stored, password) {
     return hash === originalHash;
 }
 
-// HTTP & Socket.IO
+// ==================== Socket.IO ====================
 const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
 
@@ -69,13 +72,13 @@ io.on('connection', (socket) => {
                 fromUser: socket.user._id,
                 toUser: toUserId,
                 subject: 'Chat',
-                message: message
+                message
             });
             await newMsg.save();
             const populated = await newMsg.populate('fromUser', 'name username');
             const baseResponse = populated.toObject();
 
-            // Sender gets tempId to replace optimistic message
+            // Sender gets tempId (replace optimistic message)
             socket.emit('new message', { ...baseResponse, tempId });
             // Recipient gets clean copy
             socket.to(`user_${toUserId}`).emit('new message', baseResponse);
@@ -97,7 +100,9 @@ io.on('connection', (socket) => {
     });
 });
 
-// ==================== API Routes ====================
+// ==================== API Routes (ALL must be BEFORE the catch‑all) ====================
+
+// Public registration
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password, name, room, level, dueDay } = req.body;
@@ -121,11 +126,90 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
+// Heartbeat (updates lastSeen)
 app.post('/api/heartbeat', authMiddleware, async (req, res) => {
     await User.findByIdAndUpdate(req.user.id, { lastSeen: new Date() });
     res.json({ ok: true });
 });
 
+// Test endpoint (to verify routes are working)
+app.get('/api/test', (req, res) => {
+    res.json({ message: 'API is alive' });
+});
+
+// ===== Electricity Configuration =====
+app.get('/api/electricity/config/:clientId', authMiddleware, async (req, res) => {
+    try {
+        let config = await ElectricityConfig.findOne({ clientId: req.params.clientId });
+        if (!config) {
+            return res.json({ ratePerKwh: 0, minimumAmount: null });
+        }
+        res.json(config);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/electricity/config', authMiddleware, async (req, res) => {
+    try {
+        const { clientId, ratePerKwh, minimumAmount } = req.body;
+        if (!clientId || ratePerKwh === undefined) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        let config = await ElectricityConfig.findOne({ clientId });
+        if (config) {
+            config.ratePerKwh = ratePerKwh;
+            config.minimumAmount = minimumAmount || null;
+            await config.save();
+        } else {
+            config = new ElectricityConfig({ clientId, ratePerKwh, minimumAmount });
+            await config.save();
+        }
+        res.json(config);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get all templates (global)
+app.get('/api/bill-templates', authMiddleware, async (req, res) => {
+    try {
+        const templates = await BillTemplate.find();
+        res.json(templates);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create a new template
+app.post('/api/bill-templates', authMiddleware, async (req, res) => {
+    try {
+        const { name, description, ratePerUnit, minimumAmount, dueDay } = req.body;
+        if (!name || !description || ratePerUnit === undefined || !dueDay) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        const existing = await BillTemplate.findOne({ name });
+        if (existing) return res.status(400).json({ error: 'Template with this name already exists' });
+        const template = new BillTemplate({ name, description, ratePerUnit, minimumAmount, dueDay });
+        await template.save();
+        res.status(201).json(template);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Delete a template
+app.delete('/api/bill-templates/:id', authMiddleware, async (req, res) => {
+    try {
+        await BillTemplate.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+// ===== Custom Message Endpoints (must be before general router) =====
 app.get('/api/messages/contacts', authMiddleware, async (req, res) => {
     try {
         const messages = await Message.find({
@@ -144,15 +228,25 @@ app.get('/api/messages/contacts', authMiddleware, async (req, res) => {
 });
 
 app.get('/api/messages/unread/count', authMiddleware, async (req, res) => {
+    const count = await Message.countDocuments({ toUser: req.user.id, isRead: false });
+    res.json({ unreadCount: count });
+});
+
+app.get('/api/messages/unread-per-contact', authMiddleware, async (req, res) => {
     try {
-        const count = await Message.countDocuments({ toUser: req.user.id, isRead: false });
-        res.json({ unreadCount: count });
+        const pipeline = [
+            { $match: { toUser: req.user.id, isRead: false } },
+            { $group: { _id: "$fromUser", count: { $sum: 1 } } }
+        ];
+        const unread = await Message.aggregate(pipeline);
+        const result = {};
+        unread.forEach(u => { result[u._id.toString()] = u.count; });
+        res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// Delete conversation
 app.delete('/api/messages/conversation/:userId', authMiddleware, async (req, res) => {
     try {
         const otherUserId = req.params.userId;
@@ -168,7 +262,54 @@ app.delete('/api/messages/conversation/:userId', authMiddleware, async (req, res
     }
 });
 
-// Routes
+// ===== Meter Reading Endpoints =====
+app.get('/api/meters/last-reading', authMiddleware, async (req, res) => {
+    try {
+        const { clientId, description } = req.query;
+        if (!clientId || !description) return res.json({ reading: 0 });
+        const last = await MeterReading.findOne({ clientId, description }).sort({ date: -1 });
+        res.json({ reading: last ? last.reading : 0 });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/meters/generate-bill', authMiddleware, async (req, res) => {
+    try {
+        const { clientId, description, currentReading, ratePerKwh, minimumAmount, dueDay } = req.body;
+        if (!clientId || !description || currentReading === undefined || !ratePerKwh || !dueDay) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        const lastReadingDoc = await MeterReading.findOne({ clientId, description }).sort({ date: -1 });
+        const previousReading = lastReadingDoc ? lastReadingDoc.reading : 0;
+        const consumption = currentReading - previousReading;
+        if (consumption < 0) return res.status(400).json({ error: 'Current reading cannot be less than previous' });
+        let amount = consumption * ratePerKwh;
+        if (minimumAmount && amount < minimumAmount) amount = minimumAmount;
+        const now = new Date();
+        const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay);
+        const newBill = new Bill({
+            clientId,
+            description: `${description} - ${now.toLocaleString('default', { month: 'long', year: 'numeric' })}`,
+            amount,
+            dueDate,
+            status: 'pending',
+            previousReading,
+            currentReading,
+            consumptionKwh: consumption,
+            ratePerKwh,
+            minimumAmount: minimumAmount || null
+        });
+        await newBill.save();
+        const newReading = new MeterReading({ clientId, description, reading: currentReading });
+        await newReading.save();
+        res.status(201).json({ bill: newBill, consumption, previousReading });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ===== General Routers (mount after individual routes) =====
 const messageRoutes = require('./routes/messages');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -178,7 +319,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/bills', billRoutes);
 
-// Push notifications
+// ===== Push Notifications (optional) =====
 const webpush = require('web-push');
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
@@ -204,9 +345,9 @@ app.post('/api/push/subscribe', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-global.sendNotificationToUser = async (userId, title, body, url = '/') => { /* keep if used */ };
+global.sendNotificationToUser = async () => {};
 
-// Quick diagnostic
+// ===== Diagnostic =====
 app.get('/api/check-admin', async (req, res) => {
     try {
         const admin = await User.findOne({ role: 'admin' });
@@ -218,23 +359,12 @@ app.get('/api/check-admin', async (req, res) => {
     }
 });
 
-// Get unread count per contact (for badges)
-app.get('/api/messages/unread-per-contact', authMiddleware, async (req, res) => {
-    try {
-        const pipeline = [
-            { $match: { toUser: req.user.id, isRead: false } },
-            { $group: { _id: "$fromUser", count: { $sum: 1 } } }
-        ];
-        const unread = await Message.aggregate(pipeline);
-        const result = {};
-        unread.forEach(u => { result[u._id.toString()] = u.count; });
-        res.json(result);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+// ==================== CATCH‑ALL (MUST BE LAST) ====================
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Database & start server
+// ==================== Database & Server Start ====================
 mongoose.connect(process.env.MONGODB_URI)
     .then(async () => {
         console.log('✅ MongoDB connected');
@@ -253,8 +383,3 @@ mongoose.connect(process.env.MONGODB_URI)
         server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
     })
     .catch(err => console.error('❌ MongoDB error:', err));
-
-// Catch-all (MUST be last)
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
