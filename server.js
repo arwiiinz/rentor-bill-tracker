@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
+const http = require('http');
+const socketIo = require('socket.io');
 const { authMiddleware } = require('./middleware/auth');
 
 const app = express();
@@ -20,9 +22,8 @@ const Bill = require('./models/Bill');
 const Message = require('./models/Message');
 const PushSubscription = require('./models/PushSubscription');
 
-// ==================== Password Helper (Crypto) ====================
+// Password helpers
 const PASSWORD_SECRET = process.env.PASSWORD_SECRET || 'fallback-secret-change-this';
-
 function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = crypto.createHmac('sha256', PASSWORD_SECRET + salt)
@@ -30,7 +31,6 @@ function hashPassword(password) {
                        .digest('hex');
     return `${salt}:${hash}`;
 }
-
 function verifyPassword(stored, password) {
     const [salt, originalHash] = stored.split(':');
     if (!salt || !originalHash) return false;
@@ -40,7 +40,64 @@ function verifyPassword(stored, password) {
     return hash === originalHash;
 }
 
-// ==================== API Routes (order matters) ====================
+// HTTP & Socket.IO
+const server = http.createServer(app);
+const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
+
+io.use(async (socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (!token) return next(new Error('Authentication error'));
+    try {
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
+        if (!user) return next(new Error('User not found'));
+        socket.user = user;
+        next();
+    } catch (err) {
+        next(new Error('Invalid token'));
+    }
+});
+
+io.on('connection', (socket) => {
+    console.log(`Socket connected: ${socket.user.username} (${socket.user._id})`);
+    socket.join(`user_${socket.user._id}`);
+
+    socket.on('private message', async ({ toUserId, message, tempId }) => {
+        try {
+            const newMsg = new Message({
+                fromUser: socket.user._id,
+                toUser: toUserId,
+                subject: 'Chat',
+                message: message
+            });
+            await newMsg.save();
+            const populated = await newMsg.populate('fromUser', 'name username');
+            const baseResponse = populated.toObject();
+
+            // Sender gets tempId to replace optimistic message
+            socket.emit('new message', { ...baseResponse, tempId });
+            // Recipient gets clean copy
+            socket.to(`user_${toUserId}`).emit('new message', baseResponse);
+        } catch (err) {
+            console.error('Private message error:', err);
+        }
+    });
+
+    socket.on('typing', ({ toUserId, isTyping }) => {
+        socket.to(`user_${toUserId}`).emit('user typing', { fromUserId: socket.user._id, isTyping });
+    });
+
+    socket.on('message seen', ({ messageId, fromUserId }) => {
+        socket.to(`user_${fromUserId}`).emit('message read', { messageId });
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`Socket disconnected: ${socket.user.username}`);
+    });
+});
+
+// ==================== API Routes ====================
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password, name, room, level, dueDay } = req.body;
@@ -64,13 +121,11 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// Heartbeat – update lastSeen
 app.post('/api/heartbeat', authMiddleware, async (req, res) => {
     await User.findByIdAndUpdate(req.user.id, { lastSeen: new Date() });
     res.json({ ok: true });
 });
 
-// Custom contacts endpoint – MUST be before the general /api/messages router
 app.get('/api/messages/contacts', authMiddleware, async (req, res) => {
     try {
         const messages = await Message.find({
@@ -88,26 +143,48 @@ app.get('/api/messages/contacts', authMiddleware, async (req, res) => {
     }
 });
 
-// General message routes (handles /api/messages, /api/messages/:id, etc.)
-const messageRoutes = require('./routes/messages');
-app.use('/api/messages', messageRoutes);
+app.get('/api/messages/unread/count', authMiddleware, async (req, res) => {
+    try {
+        const count = await Message.countDocuments({ toUser: req.user.id, isRead: false });
+        res.json({ unreadCount: count });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
-// Auth, users, bills routes
+// Delete conversation
+app.delete('/api/messages/conversation/:userId', authMiddleware, async (req, res) => {
+    try {
+        const otherUserId = req.params.userId;
+        await Message.deleteMany({
+            $or: [
+                { fromUser: req.user.id, toUser: otherUserId },
+                { fromUser: otherUserId, toUser: req.user.id }
+            ]
+        });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Routes
+const messageRoutes = require('./routes/messages');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const billRoutes = require('./routes/bills');
+app.use('/api/messages', messageRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/bills', billRoutes);
 
-// Push notification subscription
+// Push notifications
 const webpush = require('web-push');
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
 if (vapidPublicKey && vapidPrivateKey) {
     webpush.setVapidDetails('mailto:admin@rentor.com', vapidPublicKey, vapidPrivateKey);
 }
-
 app.post('/api/push/subscribe', async (req, res) => {
     try {
         const { subscription } = req.body;
@@ -127,25 +204,9 @@ app.post('/api/push/subscribe', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+global.sendNotificationToUser = async (userId, title, body, url = '/') => { /* keep if used */ };
 
-// Helper for notifications
-global.sendNotificationToUser = async (userId, title, body, url = '/') => {
-    if (!webpush.setVapidDetails) return;
-    const subscriptions = await PushSubscription.find({ userId });
-    const payload = JSON.stringify({ title, body, url });
-    for (const sub of subscriptions) {
-        try {
-            await webpush.sendNotification({
-                endpoint: sub.endpoint,
-                keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth }
-            }, payload);
-        } catch (err) {
-            if (err.statusCode === 410) await PushSubscription.deleteOne({ _id: sub._id });
-        }
-    }
-};
-
-// Quick diagnostic (optional)
+// Quick diagnostic
 app.get('/api/check-admin', async (req, res) => {
     try {
         const admin = await User.findOne({ role: 'admin' });
@@ -157,7 +218,23 @@ app.get('/api/check-admin', async (req, res) => {
     }
 });
 
-// ==================== Database & Admin Setup ====================
+// Get unread count per contact (for badges)
+app.get('/api/messages/unread-per-contact', authMiddleware, async (req, res) => {
+    try {
+        const pipeline = [
+            { $match: { toUser: req.user.id, isRead: false } },
+            { $group: { _id: "$fromUser", count: { $sum: 1 } } }
+        ];
+        const unread = await Message.aggregate(pipeline);
+        const result = {};
+        unread.forEach(u => { result[u._id.toString()] = u.count; });
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Database & start server
 mongoose.connect(process.env.MONGODB_URI)
     .then(async () => {
         console.log('✅ MongoDB connected');
@@ -173,11 +250,11 @@ mongoose.connect(process.env.MONGODB_URI)
             await admin.save();
             console.log('✅ Admin created: admin / admin123');
         }
-        app.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
+        server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
     })
     .catch(err => console.error('❌ MongoDB error:', err));
 
-// ==================== Catch-all (must be LAST) ====================
+// Catch-all (MUST be last)
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
