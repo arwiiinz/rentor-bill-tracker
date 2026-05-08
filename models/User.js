@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
   room: { type: String, default: '' },
   level: { type: String, default: '' },
   dueDay: { type: Number, min: 1, max: 31, default: null },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  lastSeen: { type: Date, default: Date.now }
 });
 module.exports = mongoose.model('User', userSchema);
