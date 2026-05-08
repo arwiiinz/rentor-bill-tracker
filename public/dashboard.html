@@ -10,15 +10,12 @@
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#f9fafb">
     <style>
-        /* Force message alignment */
         .message-row.outgoing { justify-content: flex-end !important; }
         .message-row.incoming { justify-content: flex-start !important; }
         .message-bubble.outgoing { background: #2c3e8f !important; color: white !important; }
         .message-bubble.incoming { background: #f3f4f6 !important; color: #1f2937 !important; }
-        /* Unread badge positioning for tab */
         .bottom-nav .nav-item { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         #unreadBadge { position: absolute; top: -4px; right: -4px; background: #ef4444; color: white; border-radius: 9999px; padding: 0.15rem 0.4rem; font-size: 0.6rem; font-weight: 600; min-width: 1.2rem; text-align: center; line-height: 1.2; box-shadow: 0 0 0 1px white; z-index: 1; }
-        /* Unread badge on contact items */
         .contact-name { display: inline-flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
         .unread-badge { background: #ef4444; color: white; border-radius: 9999px; padding: 0.1rem 0.4rem; font-size: 0.6rem; font-weight: 600; line-height: 1.2; }
     </style>
@@ -27,43 +24,26 @@
 <div class="app">
     <div class="header">
         <div class="welcome-row">
-            <div class="greeting">
-                <h2 id="welcomeMessage">Hello</h2>
-                <p id="userDetail"></p>
-            </div>
+            <div class="greeting"><h2 id="welcomeMessage">Hello</h2><p id="userDetail"></p></div>
             <div class="role-badge" id="roleBadge"></div>
         </div>
     </div>
-    <div class="main-content" id="mainContent">
-        <div class="loading-spinner"><i class="fas fa-spinner fa-pulse fa-2x"></i><br>Loading...</div>
-    </div>
+    <div class="main-content" id="mainContent"><div class="loading-spinner"><i class="fas fa-spinner fa-pulse fa-2x"></i><br>Loading...</div></div>
     <div class="bottom-nav">
         <button class="nav-item" data-section="dashboard"><i class="fas fa-chart-simple"></i><span>Home</span></button>
         <button class="nav-item" data-section="bills"><i class="fas fa-receipt"></i><span>Bills</span></button>
-        <button class="nav-item" data-section="messages">
-            <i class="fas fa-envelope"></i>
-            <span>Messages</span>
-            <span id="unreadBadge" class="badge" style="display:none;">0</span>
-        </button>
-        <button class="nav-item" id="adminNavBtn" style="display: none;" data-section="users"><i class="fas fa-users"></i><span>Tenants</span></button>
-        <button class="nav-item" id="specialNavBtn" style="display: none;" data-section="addBill"><i class="fas fa-plus-circle"></i><span>Add Bill</span></button>
+        <button class="nav-item" data-section="messages"><i class="fas fa-envelope"></i><span>Messages</span><span id="unreadBadge" class="badge" style="display:none;">0</span></button>
+        <button class="nav-item" id="adminNavBtn" style="display:none;" data-section="users"><i class="fas fa-users"></i><span>Tenants</span></button>
+        <button class="nav-item" id="specialNavBtn" style="display:none;" data-section="addBill"><i class="fas fa-plus-circle"></i><span>Add Bill</span></button>
         <button class="nav-item" id="logoutBtn"><i class="fas fa-sign-out-alt"></i><span>Exit</span></button>
     </div>
 </div>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
-    // --- globals ---
     const token = localStorage.getItem('token');
     if (!token) window.location.href = '/';
-    let currentUser = null;
-    let allClients = [];
-    let allBills = [];
-    let socket = null;
-    let currentChatUserId = null;
-    let currentChatUserName = '';
-    let allContacts = [];
+    let currentUser = null, allClients = [], allBills = [], socket = null, currentChatUserId = null, currentChatUserName = '', allContacts = [];
 
-    // --- API helpers ---
     async function apiGet(url) {
         const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
         if (!res.ok) throw new Error((await res.json()).error || 'Request failed');
@@ -80,7 +60,6 @@
         return res.json();
     }
 
-    // --- load user & data ---
     async function loadUser() {
         try {
             currentUser = await apiGet('/api/users/me');
@@ -96,7 +75,6 @@
             }
         } catch(e) { logout(); }
     }
-
     async function loadData() {
         try {
             const [clientsRes, billsRes] = await Promise.all([ apiGet('/api/users/clients'), apiGet('/api/bills') ]);
@@ -104,173 +82,553 @@
             allBills = billsRes;
         } catch(e) { console.warn(e); }
     }
-
     function escapeHtml(str) {
         if (!str) return '';
         return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
     }
 
-    // ==================== DASHBOARD ====================
-    function renderDashboard(container) {
-        const pending = allBills.filter(b => b.status === 'pending').length;
-        const paid = allBills.filter(b => b.status === 'paid').length;
-        const totalDue = allBills.filter(b => b.status === 'pending').reduce((s,b) => s + b.amount, 0);
-        const recent = allBills.slice(0, 5);
-        container.innerHTML = `
-            <div class="stats-grid">
-                <div class="stat-card"><div class="stat-number">${pending}</div><div class="stat-label">Pending</div></div>
-                <div class="stat-card"><div class="stat-number">${paid}</div><div class="stat-label">Paid</div></div>
-                <div class="stat-card"><div class="stat-number">₱${totalDue.toLocaleString()}</div><div class="stat-label">Due</div></div>
-            </div>
-            <div class="card"><div class="card-header">📋 Recent bills</div><div class="card-body">
-                ${recent.length ? recent.map(b => `<div class="bill-item"><div class="bill-row"><span><strong>${b.description}</strong><br><small>Due ${new Date(b.dueDate).toLocaleDateString()}</small></span><span>₱${b.amount.toLocaleString()} <span class="badge ${b.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${b.status}</span></span></div></div>`).join('') : '<div class="empty-state">No bills yet</div>'}
-            </div></div>`;
-    }
-
-    // ==================== BILLS (with search, filters) ====================
-    let billsFilter = {
-        search: '',
-        status: 'all',
-        category: 'all'
-    };
-
-    async function renderBills(container) {
-        if (!allBills.length) {
-            container.innerHTML = `<div class="card"><div class="card-body"><div class="empty-state">No bills found.</div></div></div>`;
-            return;
-        }
-        const categoriesSet = new Set();
-        allBills.forEach(b => { if (b.description) categoriesSet.add(b.description); });
-        const categories = Array.from(categoriesSet).sort();
-
-        let filtered = [...allBills];
-        if (billsFilter.search.trim() !== '') {
-            const term = billsFilter.search.toLowerCase();
-            filtered = filtered.filter(bill => (bill.clientId?.name?.toLowerCase() || '').includes(term) || (bill.description?.toLowerCase() || '').includes(term));
-        }
-        if (billsFilter.status !== 'all') filtered = filtered.filter(bill => bill.status === billsFilter.status);
-        if (billsFilter.category !== 'all') filtered = filtered.filter(bill => bill.description === billsFilter.category);
-
-        const filterBarHtml = `
-            <div class="filter-bar-modern">
-                <div class="filter-group filter-search"><i class="fas fa-search search-icon"></i><input type="text" id="billsSearchInput" placeholder="Search tenant or bill..." value="${escapeHtml(billsFilter.search)}"></div>
-                <div class="filter-group"><select id="billsStatusFilter"><option value="all" ${billsFilter.status === 'all' ? 'selected' : ''}>All status</option><option value="pending" ${billsFilter.status === 'pending' ? 'selected' : ''}>Pending</option><option value="paid" ${billsFilter.status === 'paid' ? 'selected' : ''}>Paid</option></select></div>
-                <div class="filter-group"><select id="billsCategoryFilter"><option value="all" ${billsFilter.category === 'all' ? 'selected' : ''}>All categories</option>${categories.map(cat => `<option value="${escapeHtml(cat)}" ${billsFilter.category === cat ? 'selected' : ''}>${escapeHtml(cat)}</option>`).join('')}</select></div>
-                <button class="reset-modern" id="billsResetFiltersBtn"><i class="fas fa-times-circle"></i> Reset</button>
-            </div>`;
-
-        if (filtered.length === 0) {
-            container.innerHTML = filterBarHtml + `<div class="empty-state">No bills match your filters.</div>`;
-            attachFilterEvents();
-            return;
-        }
-
+    async function printAllReceipts() {
+    try {
         const billsByClient = new Map();
-        for (const bill of filtered) {
+        for (const bill of allBills) {
             const client = bill.clientId;
             if (!client) continue;
-            const clientId = client._id;
-            if (!billsByClient.has(clientId)) billsByClient.set(clientId, { clientName: client.name, clientRoom: client.room, clientLevel: client.level, bills: [] });
-            billsByClient.get(clientId).bills.push(bill);
+            if (!billsByClient.has(client._id)) {
+                billsByClient.set(client._id, {
+                    name: client.name,
+                    room: client.room,
+                    level: client.level,
+                    pendingTotal: 0,
+                    paidTotal: 0,
+                    billCount: 0
+                });
+            }
+            const data = billsByClient.get(client._id);
+            if (bill.status === 'pending') data.pendingTotal += bill.amount;
+            else data.paidTotal += bill.amount;
+            data.billCount++;
         }
 
-        let clientsHtml = '';
-        for (const [clientId, clientData] of billsByClient) {
-            const groupedByDesc = new Map();
-            for (const bill of clientData.bills) {
-                const desc = bill.description;
-                if (!groupedByDesc.has(desc)) groupedByDesc.set(desc, []);
-                groupedByDesc.get(desc).push(bill);
-            }
-            clientsHtml += `<div class="card" style="margin-bottom:1rem;"><div class="card-header"><strong>${escapeHtml(clientData.clientName)}</strong> <span style="font-size:0.8rem;">(Rm ${escapeHtml(clientData.clientRoom)}, ${escapeHtml(clientData.clientLevel)})</span></div><div class="card-body">`;
-            for (const [category, bills] of groupedByDesc) {
-                const sortedBills = [...bills].sort((a,b) => new Date(b.dueDate) - new Date(a.dueDate));
-                clientsHtml += `<div style="margin-bottom:1rem;"><div style="font-weight:600;">${escapeHtml(category)}</div><div>`;
-                for (const bill of sortedBills) {
-                    const monthYear = new Date(bill.dueDate).toLocaleString('default', { month: 'short', year: 'numeric' });
-                    clientsHtml += `<div class="bill-item" style="display:flex; justify-content:space-between; align-items:center;"><div>${monthYear} — ₱${bill.amount.toLocaleString()} <span class="badge ${bill.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${bill.status}</span></div><div>`;
-                    if (bill.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special')) clientsHtml += `<button class="small" onclick="markPaid('${bill._id}')">✔ Mark paid</button>`;
-                    if (currentUser.role === 'admin' || currentUser.role === 'special') clientsHtml += `<button class="small" onclick="deleteBill('${bill._id}')" style="background:#fee2e2; color:#b91c1c;">🗑 Delete</button>`;
-                    clientsHtml += `</div></div>`;
-                }
-                clientsHtml += `</div></div>`;
-            }
-            clientsHtml += `</div></div>`;
+        const clients = Array.from(billsByClient.values());
+        if (clients.length === 0) {
+            alert('No tenants with bills found.');
+            return;
         }
-        container.innerHTML = filterBarHtml + clientsHtml;
-        attachFilterEvents();
+
+        let cardsHtml = '';
+        for (const client of clients) {
+            cardsHtml += `
+                <div class="receipt-card">
+                    <div class="receipt-header">
+                        🧾 ${escapeHtml(client.name)}
+                        <span style="font-size:0.65rem; font-weight:normal;"> (Rm ${escapeHtml(client.room)} , ${escapeHtml(client.level)})</span>
+                    </div>
+                    <div class="receipt-details">
+                        <div>Total bills: ${client.billCount}</div>
+                        <div>Pending: ₱${client.pendingTotal.toLocaleString()}</div>
+                        <div>Paid: ₱${client.paidTotal.toLocaleString()}</div>
+                    </div>
+                    <div class="receipt-total">
+                        <strong>Total Amount: ₱${(client.pendingTotal + client.paidTotal).toLocaleString()}</strong>
+                    </div>
+                    <div class="footer">Official Receipt • Rentor System</div>
+                </div>
+            `;
+        }
+
+        const receiptHtml = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Rentor - Batch Receipts</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+            background: white;
+            padding: 0.5rem;
+        }
+        .receipt-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            page-break-inside: avoid;
+        }
+        .receipt-card {
+            border: 1px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 0.7rem;
+            background: white;
+            break-inside: avoid;
+            page-break-inside: avoid;
+            height: auto;
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .receipt-header {
+            font-weight: 700;
+            font-size: 0.9rem;
+            border-bottom: 1px dotted #ccc;
+            margin-bottom: 0.3rem;
+            padding-bottom: 0.2rem;
+        }
+        .receipt-details {
+            font-size: 0.75rem;
+            line-height: 1.3;
+            margin: 0.3rem 0;
+        }
+        .receipt-total {
+            font-weight: 700;
+            margin-top: 0.3rem;
+            font-size: 0.8rem;
+            border-top: 1px solid #eee;
+            padding-top: 0.2rem;
+        }
+        .footer {
+            font-size: 0.6rem;
+            text-align: center;
+            margin-top: 0.3rem;
+            color: #64748b;
+        }
+        @media print {
+            body { margin: 0; padding: 0; }
+            .receipt-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 0.2rem;
+            }
+            .receipt-card {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                border: 1px solid #ccc;
+            }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt-grid">
+        ${cardsHtml}
+    </div>
+    <div class="no-print" style="text-align:center; margin:1rem;">
+        <button onclick="window.print()">🖨️ Print</button>
+    </div>
+    <script>
+        window.onload = () => { window.print(); };
+    <\/script>
+</body>
+</html>`;
+
+        const win = window.open();
+        win.document.write(receiptHtml);
+        win.document.close();
+    } catch (err) {
+        console.error(err);
+        alert('Failed to generate receipts: ' + err.message);
+    }
+}
+
+  function renderDashboard(container) {
+    const pending = allBills.filter(b => b.status === 'pending').length;
+    const paid = allBills.filter(b => b.status === 'paid').length;
+    const totalDue = allBills.filter(b => b.status === 'pending').reduce((s,b) => s + b.amount, 0);
+    // Upcoming bills (due in next 7 days)
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    const upcoming = allBills.filter(b => b.status === 'pending' && new Date(b.dueDate) <= sevenDaysFromNow).slice(0, 5);
+    const recent = allBills.slice(0, 6);
+
+    container.innerHTML = `
+        <div class="welcome-banner" style="background: linear-gradient(135deg, #2c3e8f 0%, #1a237e 100%); border-radius: 28px; padding: 1.5rem; margin-bottom: 1.5rem; color: white;">
+            <div style="font-size: 1.1rem; opacity: 0.9;">Welcome back,</div>
+            <div style="font-size: 2rem; font-weight: 700; margin-top: 0.25rem;">${escapeHtml(currentUser.name.split(' ')[0])}!</div>
+            <div style="margin-top: 0.5rem; font-size: 0.9rem; opacity: 0.8;">Here's your billing summary</div>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card" style="background: #fff7ed; border: 1px solid #ffedd5; text-align: center;">
+                <div class="stat-number" style="color: #c2410c;">${pending}</div>
+                <div class="stat-label">Pending Bills</div>
+                <i class="fas fa-hourglass-half" style="color: #c2410c; font-size: 1.2rem; margin-top: 0.25rem;"></i>
+            </div>
+            <div class="stat-card" style="background: #ecfdf5; border: 1px solid #d1fae5; text-align: center;">
+                <div class="stat-number" style="color: #047857;">${paid}</div>
+                <div class="stat-label">Paid Bills</div>
+                <i class="fas fa-check-circle" style="color: #047857; font-size: 1.2rem; margin-top: 0.25rem;"></i>
+            </div>
+            <div class="stat-card" style="background: #eff6ff; border: 1px solid #dbeafe; text-align: center;">
+                <div class="stat-number" style="color: #1d4ed8;">₱${totalDue.toLocaleString()}</div>
+                <div class="stat-label">Total Due</div>
+                <i class="fas fa-peso-sign" style="color: #1d4ed8; font-size: 1.2rem; margin-top: 0.25rem;"></i>
+            </div>
+        </div>
+        ${upcoming.length ? `
+            <div class="card" style="margin-top: 0.5rem;">
+                <div class="card-header" style="background: #fefce8;">
+                    <i class="fas fa-calendar-exclamation" style="margin-right: 0.5rem;"></i> Upcoming Bills (next 7 days)
+                </div>
+                <div class="card-body" style="padding: 0.5rem 1.25rem;">
+                    ${upcoming.map(b => `
+                        <div class="bill-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0;">
+                            <div>
+                                <strong>${escapeHtml(b.description)}</strong>
+                                <div style="font-size: 0.8rem; color: #b45309;">Due ${new Date(b.dueDate).toLocaleDateString()}</div>
+                            </div>
+                            <div class="badge badge-pending" style="font-size: 0.8rem;">₱${b.amount.toLocaleString()}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        ` : ''}
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-receipt" style="margin-right: 0.5rem;"></i> Recent Bills
+            </div>
+            <div class="card-body" style="padding: 0.5rem 1.25rem;">
+                ${recent.length ? recent.map(b => `
+                    <div class="bill-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0;">
+                        <div>
+                            <strong>${escapeHtml(b.description)}</strong>
+                            <div style="font-size: 0.8rem; color: #6b7280;">${b.clientId?.name || 'Unknown'} · ${new Date(b.dueDate).toLocaleDateString()}</div>
+                        </div>
+                        <div>
+                            <span class="badge ${b.status === 'pending' ? 'badge-pending' : 'badge-paid'}">₱${b.amount.toLocaleString()}</span>
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No bills yet</div>'}
+            </div>
+        </div>
+    `;
+}
+
+    let billsFilter = { search: '', status: 'all', category: 'all' };
+async function renderBills(container) {
+    if (!allBills.length) {
+        container.innerHTML = `<div class="card"><div class="card-body"><div class="empty-state" style="font-size:1.1rem;">📭 No bills found.</div></div></div>`;
+        return;
     }
 
-    function attachFilterEvents() {
-        const searchInput = document.getElementById('billsSearchInput');
-        const statusSelect = document.getElementById('billsStatusFilter');
-        const categorySelect = document.getElementById('billsCategoryFilter');
-        const resetBtn = document.getElementById('billsResetFiltersBtn');
+    // Extract categories for filter dropdown
+    const categoriesSet = new Set();
+    allBills.forEach(b => { if (b.description) categoriesSet.add(b.description); });
+    const categories = Array.from(categoriesSet).sort();
 
-        const update = () => {
-            billsFilter.search = searchInput ? searchInput.value : '';
-            billsFilter.status = statusSelect ? statusSelect.value : 'all';
-            billsFilter.category = categorySelect ? categorySelect.value : 'all';
-            showSection('bills');
-        };
+    // Apply filters
+    let filtered = [...allBills];
+    if (billsFilter.search.trim() !== '') {
+        const term = billsFilter.search.toLowerCase();
+        filtered = filtered.filter(bill => (bill.clientId?.name?.toLowerCase() || '').includes(term) || (bill.description?.toLowerCase() || '').includes(term));
+    }
+    if (billsFilter.status !== 'all') filtered = filtered.filter(bill => bill.status === billsFilter.status);
+    if (billsFilter.category !== 'all') filtered = filtered.filter(bill => bill.description === billsFilter.category);
+
+    // Filter bar HTML (improved)
+    const filterBarHtml = `
+        <div class="filter-bar-modern" style="background: white; padding: 1rem; border-radius: 24px; margin-bottom: 1.5rem; border:1px solid #eef2f6;">
+            <div class="filter-group filter-search" style="flex:2;">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="billsSearchInput" placeholder="Search tenant or bill..." value="${escapeHtml(billsFilter.search)}" style="font-size:0.9rem;">
+            </div>
+            <div class="filter-group">
+                <select id="billsStatusFilter">
+                    <option value="all" ${billsFilter.status === 'all' ? 'selected' : ''}>📌 All status</option>
+                    <option value="pending" ${billsFilter.status === 'pending' ? 'selected' : ''}>⏳ Pending</option>
+                    <option value="paid" ${billsFilter.status === 'paid' ? 'selected' : ''}>✅ Paid</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <select id="billsCategoryFilter">
+                    <option value="all" ${billsFilter.category === 'all' ? 'selected' : ''}>📂 All categories</option>
+                    ${categories.map(cat => `<option value="${escapeHtml(cat)}" ${billsFilter.category === cat ? 'selected' : ''}>${escapeHtml(cat)}</option>`).join('')}
+                </select>
+            </div>
+            <button class="reset-modern" id="billsResetFiltersBtn"><i class="fas fa-times-circle"></i> Reset</button>
+        </div>
+    `;
+
+    if (filtered.length === 0) {
+        container.innerHTML = filterBarHtml + `<div class="empty-state" style="font-size:1.1rem;">🔍 No bills match your filters.</div>`;
+        attachFilterEvents();
+        // Inside renderBills, after attachFilterEvents() but before building clientsHtml
+let batchPrintButton = '';
+if (currentUser.role === 'admin' || currentUser.role === 'special') {
+    batchPrintButton = `<button class="primary-btn" onclick="printAllReceipts()" style="margin-bottom: 1rem; background: #2c3e8f;"><i class="fas fa-print"></i> Print All Tenants (8 per page)</button>`;
+}
+// Then when setting container.innerHTML, include it:
+container.innerHTML = batchPrintButton + filterBarHtml + clientsHtml;
+        return;
+    }
+
+    // Group by client
+    const billsByClient = new Map();
+    for (const bill of filtered) {
+        const client = bill.clientId;
+        if (!client) continue;
+        const clientId = client._id;
+        if (!billsByClient.has(clientId)) {
+            billsByClient.set(clientId, {
+                clientName: client.name,
+                clientRoom: client.room,
+                clientLevel: client.level,
+                bills: []
+            });
+        }
+        billsByClient.get(clientId).bills.push(bill);
+    }
+
+    // Build new UI
+    let clientsHtml = '';
+    for (const [clientId, clientData] of billsByClient) {
+        // Group bills by description (category) within each client
+        const groupedByDesc = new Map();
+        for (const bill of clientData.bills) {
+            const desc = bill.description;
+            if (!groupedByDesc.has(desc)) groupedByDesc.set(desc, []);
+            groupedByDesc.get(desc).push(bill);
+        }
+
+        clientsHtml += `
+            <div class="bill-client-card">
+                <div class="bill-client-header">
+                    <i class="fas fa-user-circle"></i> ${escapeHtml(clientData.clientName)}
+                    <span style="font-size:0.85rem; font-weight:normal; margin-left:0.5rem; color:#475569;">(Rm ${escapeHtml(clientData.clientRoom)}, ${escapeHtml(clientData.clientLevel)})</span>
+                </div>
+                <div class="card-body" style="padding:0;">
+        `;
+        for (const [category, bills] of groupedByDesc) {
+            const sortedBills = [...bills].sort((a,b) => new Date(b.dueDate) - new Date(a.dueDate));
+            clientsHtml += `
+                <div class="bill-category-group">
+                    <div class="bill-category-title">
+                        <i class="fas fa-tag"></i> ${escapeHtml(category)}
+                    </div>
+            `;
+            for (const bill of sortedBills) {
+                const dueDate = new Date(bill.dueDate);
+                const monthYear = dueDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+                const isPending = bill.status === 'pending';
+                clientsHtml += `
+                    <div class="bill-item-row">
+                        <div class="bill-item-details">
+                            <div class="bill-month">📅 ${monthYear}</div>
+                            <div class="bill-amount">₱${bill.amount.toLocaleString()}</div>
+                            <span class="badge ${bill.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${bill.status === 'pending' ? '⏳ Pending' : '✅ Paid'}</span>
+                        </div>
+                        <div class="bill-actions">
+                            ${bill.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special') ? 
+                                `<button class="mark-paid-btn" onclick="markPaid('${bill._id}')"><i class="fas fa-check-circle"></i> Mark paid</button>` : ''
+                            }
+                            ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
+                                `<button class="delete-btn" onclick="deleteBill('${bill._id}')"><i class="fas fa-trash-alt"></i> Delete</button>` : ''
+                            }
+                            ${bill.ratePerKwh !== undefined && bill.ratePerKwh !== null && bill.ratePerKwh > 0 ? 
+                                `<button class="compute-btn" onclick="showComputation('${bill._id}')"><i class="fas fa-calculator"></i> Computation</button>` : ''
+                            }
+                        </div>
+                    </div>
+                `;
+            }
+            clientsHtml += `</div>`;
+        }
+        clientsHtml += `</div></div>`;
+    }
+
+    container.innerHTML = filterBarHtml + clientsHtml;
+    attachFilterEvents();
+}
+
+
+
+
+    function attachFilterEvents() {
+        const searchInput = document.getElementById('billsSearchInput'), statusSelect = document.getElementById('billsStatusFilter'), categorySelect = document.getElementById('billsCategoryFilter'), resetBtn = document.getElementById('billsResetFiltersBtn');
+        const update = () => { billsFilter.search = searchInput ? searchInput.value : ''; billsFilter.status = statusSelect ? statusSelect.value : 'all'; billsFilter.category = categorySelect ? categorySelect.value : 'all'; showSection('bills'); };
         if (searchInput) searchInput.addEventListener('input', update);
         if (statusSelect) statusSelect.addEventListener('change', update);
         if (categorySelect) categorySelect.addEventListener('change', update);
-        if (resetBtn) resetBtn.addEventListener('click', () => {
-            if (searchInput) searchInput.value = '';
-            if (statusSelect) statusSelect.value = 'all';
-            if (categorySelect) categorySelect.value = 'all';
-            billsFilter.search = ''; billsFilter.status = 'all'; billsFilter.category = 'all';
-            showSection('bills');
+        if (resetBtn) resetBtn.addEventListener('click', () => { if (searchInput) searchInput.value = ''; if (statusSelect) statusSelect.value = 'all'; if (categorySelect) categorySelect.value = 'all'; billsFilter.search = ''; billsFilter.status = 'all'; billsFilter.category = 'all'; showSection('bills'); });
+    }
+    window.deleteBill = async (billId) => { if (!confirm('Delete permanently?')) return; try { await fetch(`/api/bills/${billId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); alert('Bill deleted'); await loadData(); showSection('bills'); } catch(err) { alert(err.message); } };
+    window.markPaid = async (billId) => { if (!confirm('Mark as paid?')) return; try { await fetch(`/api/bills/${billId}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } }); await loadData(); showSection('bills'); } catch(e) { alert(e.message); } };
+
+function renderAddBill(container) {
+    const tenantOptions = allClients.filter(c => c.role === 'client').map(c => `<option value="${c._id}">${c.name} (Rm ${c.room})</option>`).join('');
+
+    container.innerHTML = `
+        <div class="card"><div class="card-header">➕ Add new bill (manual)</div><div class="card-body">
+            <form id="billFormSimple">
+                <select id="clientIdSimple" required>${tenantOptions}</select>
+                <input type="text" placeholder="Description" id="descSimple" required>
+                <input type="number" placeholder="Amount (₱)" id="amountSimple" required>
+                <input type="date" id="dueDateSimple" required>
+                <button class="primary-btn" type="submit" id="createBillBtn">Create bill</button>
+            </form>
+        </div></div>
+
+        <div class="card"><div class="card-header">📄 Bill Templates (global)</div><div class="card-body">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom:1rem;">
+                <input type="text" id="templateName" placeholder="Template name (e.g. Electricity)" required>
+                <input type="text" id="templateDesc" placeholder="Description (e.g. Electric bill)" required>
+                <input type="number" id="templateRate" placeholder="Rate per unit (₱)" step="0.01" required>
+                <input type="number" id="templateMin" placeholder="Min amount (₱)" step="0.01">
+                <input type="number" id="templateDueDay" placeholder="Due day (1-31)" min="1" max="31" required>
+                <button id="saveTemplateBtn" class="primary-btn">Save Template</button>
+            </div>
+            <div id="templatesList" style="margin-top:0.5rem;"></div>
+        </div></div>
+
+        <div class="card"><div class="card-header">⚡ Generate Bill from Meter Reading</div><div class="card-body">
+            <form id="meterBillForm">
+                <select id="meterTenantSelect" required>${tenantOptions}</select>
+                <select id="meterTemplateSelect" required><option value="">-- Select template --</option></select>
+                <input type="number" id="meterReading" placeholder="Current Reading (units)" step="0.01" required>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <input type="number" id="meterRate" placeholder="Rate per unit (₱)" step="0.01" required style="flex:1;">
+                    <input type="number" id="meterMin" placeholder="Minimum amount (₱)" step="0.01" style="flex:1;">
+                    <input type="number" id="meterDueDay" placeholder="Due day (1-31)" min="1" max="31" required style="flex:1;">
+                </div>
+                <button type="submit" class="primary-btn">Generate Bill from Reading</button>
+            </form>
+            <div id="prevReadingDisplay" style="margin-top:0.5rem; font-size:0.8rem; color:#6b7280;"></div>
+        </div></div>
+    `;
+
+    // Manual bill creation (unchanged)
+    document.getElementById('billFormSimple')?.addEventListener('submit', async (e) => { /* ... */ });
+
+    // ===== Global Templates =====
+    let globalTemplates = [];
+    const templatesListDiv = document.getElementById('templatesList');
+
+
+    async function loadGlobalTemplates() {
+        try {
+            globalTemplates = await apiGet('/api/bill-templates');
+            renderTemplatesList();
+            updateTemplateDropdown();
+        } catch(e) { console.warn(e); }
+    }
+    function renderTemplatesList() {
+        templatesListDiv.innerHTML = globalTemplates.map(t => `
+            <div data-id="${t._id}" style="border-bottom:1px solid #eee; padding:0.4rem 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+                <div><strong>${escapeHtml(t.name)}</strong> – ${escapeHtml(t.description)}<br>
+                Rate: ₱${t.ratePerUnit}/unit, Min: ₱${t.minimumAmount || 'none'}, Due day: ${t.dueDay}</div>
+                <button class="small delete-template" data-id="${t._id}" style="background:#fee2e2; color:#b91c1c;">Delete</button>
+            </div>
+        `).join('');
+        document.querySelectorAll('.delete-template').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = btn.getAttribute('data-id');
+                if (!confirm('Delete this template?')) return;
+                try {
+                    await apiDelete(`/api/bill-templates/${id}`);
+                    loadGlobalTemplates();
+                } catch(err) { alert(err.message); }
+            });
         });
     }
-
-    window.deleteBill = async (billId) => {
-        if (!confirm('Delete this bill permanently?')) return;
-        try {
-            await fetch(`/api/bills/${billId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-            alert('Bill deleted');
-            await loadData();
-            showSection('bills');
-        } catch(err) { alert('Delete failed: ' + err.message); }
-    };
-
-    window.markPaid = async (billId) => {
-        if (!confirm('Mark this bill as paid?')) return;
-        try {
-            await fetch(`/api/bills/${billId}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
-            await loadData();
-            showSection('bills');
-        } catch(e) { alert('Error marking paid: ' + e.message); }
-    };
-
-    // ==================== ADD BILL ====================
-    function renderAddBill(container) {
-        container.innerHTML = `
-            <div class="card"><div class="card-header">➕ Add new bill</div><div class="card-body">
-                <form id="billFormSimple">
-                    <select id="clientIdSimple" required>${allClients.filter(c => c.role === 'client').map(c => `<option value="${c._id}">${c.name} (Rm ${c.room})</option>`).join('')}</select>
-                    <input type="text" placeholder="Description (e.g. Rent Sep)" id="descSimple" required>
-                    <input type="number" placeholder="Amount (₱)" id="amountSimple" required>
-                    <input type="date" id="dueDateSimple" required>
-                    <button class="primary-btn" type="submit" id="createBillBtn">Create bill</button>
-                </form>
-            </div></div>`;
-        document.getElementById('billFormSimple')?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('createBillBtn');
-            btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
-            btn.disabled = true;
-            try {
-                await apiPost('/api/bills', { clientId: document.getElementById('clientIdSimple').value, description: document.getElementById('descSimple').value, amount: parseFloat(document.getElementById('amountSimple').value), dueDate: document.getElementById('dueDateSimple').value });
-                await loadData();
-                showSection('bills');
-            } catch(err) { alert(err.message); }
-            finally { btn.innerHTML = 'Create bill'; btn.disabled = false; }
-        });
+    function updateTemplateDropdown() {
+        const meterTemplateSelect = document.getElementById('meterTemplateSelect');
+        meterTemplateSelect.innerHTML = '<option value="">-- Select template --</option>' +
+            globalTemplates.map(t => `<option value="${t._id}" data-rate="${t.ratePerUnit}" data-min="${t.minimumAmount || ''}" data-due="${t.dueDay}">${t.name} (${t.description})</option>`).join('');
     }
 
-    // ==================== USERS (TENANTS) ====================
+    document.getElementById('saveTemplateBtn').addEventListener('click', async () => {
+        const payload = {
+            name: document.getElementById('templateName').value.trim(),
+            description: document.getElementById('templateDesc').value.trim(),
+            ratePerUnit: parseFloat(document.getElementById('templateRate').value),
+            minimumAmount: parseFloat(document.getElementById('templateMin').value) || null,
+            dueDay: parseInt(document.getElementById('templateDueDay').value)
+        };
+        if (!payload.name || !payload.description || isNaN(payload.ratePerUnit) || !payload.dueDay) {
+            alert('Fill all required fields');
+            return;
+        }
+        try {
+            await apiPost('/api/bill-templates', payload);
+            alert('Template saved');
+            document.getElementById('templateName').value = '';
+            document.getElementById('templateDesc').value = '';
+            document.getElementById('templateRate').value = '';
+            document.getElementById('templateMin').value = '';
+            document.getElementById('templateDueDay').value = '';
+            loadGlobalTemplates();
+        } catch(err) { alert(err.message); }
+    });
+
+    // Load templates on page load
+    loadGlobalTemplates();
+
+    // ===== Meter reading form =====
+    const meterTenant = document.getElementById('meterTenantSelect');
+    const meterTemplateSelect = document.getElementById('meterTemplateSelect');
+    const meterRate = document.getElementById('meterRate');
+    const meterMin = document.getElementById('meterMin');
+    const meterDueDay = document.getElementById('meterDueDay');
+    const meterReadingInput = document.getElementById('meterReading');
+    const prevDisplay = document.getElementById('prevReadingDisplay');
+
+    function onTemplateChange() {
+        const selected = meterTemplateSelect.options[meterTemplateSelect.selectedIndex];
+        if (selected && selected.value) {
+            meterRate.value = selected.getAttribute('data-rate') || '';
+            meterMin.value = selected.getAttribute('data-min') || '';
+            meterDueDay.value = selected.getAttribute('data-due') || '';
+        } else {
+            meterRate.value = '';
+            meterMin.value = '';
+            meterDueDay.value = '';
+        }
+        fetchLastReading();
+    }
+    meterTemplateSelect.addEventListener('change', onTemplateChange);
+
+    async function fetchLastReading() {
+        const clientId = meterTenant.value;
+        const templateId = meterTemplateSelect.value;
+        if (!clientId || !templateId) return;
+        const template = globalTemplates.find(t => t._id === templateId);
+        if (!template) return;
+        const description = template.description;
+        try {
+            const res = await apiGet(`/api/meters/last-reading?clientId=${clientId}&description=${encodeURIComponent(description)}`);
+            prevDisplay.innerHTML = `Previous reading: ${res.reading} units`;
+        } catch(e) { prevDisplay.innerHTML = ''; }
+    }
+    meterTenant.addEventListener('change', () => {
+        if (meterTemplateSelect.value) fetchLastReading();
+    });
+
+    // Generate bill
+    document.getElementById('meterBillForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const original = btn.innerText;
+        btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>'; btn.disabled = true;
+        try {
+            const selectedTemplate = globalTemplates.find(t => t._id === meterTemplateSelect.value);
+            if (!selectedTemplate) throw new Error('Please select a template');
+            const payload = {
+                clientId: meterTenant.value,
+                description: selectedTemplate.description,
+                currentReading: parseFloat(meterReadingInput.value),
+                ratePerKwh: parseFloat(meterRate.value),   // works with existing endpoint
+                minimumAmount: parseFloat(meterMin.value) || null,
+                dueDay: parseInt(meterDueDay.value)
+            };
+            await apiPost('/api/meters/generate-bill', payload);
+            alert('Bill generated!');
+            await loadData();
+            showSection('bills');
+        } catch(err) { alert(err.message); } finally { btn.innerHTML = original; btn.disabled = false; }
+    });
+}
+
+
+
+
+    // ==================== TENANTS (USERS) ====================
     function renderUsers(container) {
         container.innerHTML = `
             <div class="card"><div class="card-header">👥 Tenants & staff</div><div class="card-body">
@@ -292,12 +650,11 @@
                     <button class="primary-btn" type="submit">Create tenant</button>
                 </form>
             </div></div>`;
-
         // Delete user
         document.querySelectorAll('.delete-user-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const userId = btn.getAttribute('data-id');
-                if (!confirm('Delete user permanently?')) return;
+                if (!confirm('Delete user permanently? This will delete all their data.')) return;
                 try {
                     await apiDelete(`/api/users/${userId}`);
                     alert('User deleted');
@@ -306,7 +663,7 @@
                 } catch(err) { alert(err.message); }
             });
         });
-        // Edit user
+        // Edit user (simple prompt)
         document.querySelectorAll('.edit-user-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const userId = btn.getAttribute('data-id');
@@ -322,20 +679,26 @@
                 apiPost(`/api/users/${userId}`, { name: newName, room: newRoom, level: newLevel, dueDay: newDue ? parseInt(newDue) : null }).then(async () => { await loadData(); showSection('users'); }).catch(err => alert(err.message));
             });
         });
-        // Register
+        // Register tenant
         document.getElementById('registerFormSimple')?.addEventListener('submit', async (e) => {
             e.preventDefault();
             const payload = { username: document.getElementById('regUsername').value, password: document.getElementById('regPass').value, name: document.getElementById('regName').value, role: 'client', room: document.getElementById('regRoom').value, level: document.getElementById('regLevel').value, dueDay: document.getElementById('regDueDay')?.value || null };
             try {
                 await apiPost('/api/users', payload);
                 alert('Tenant created');
+                document.getElementById('regUsername').value = '';
+                document.getElementById('regPass').value = '';
+                document.getElementById('regName').value = '';
+                document.getElementById('regRoom').value = '';
+                document.getElementById('regLevel').value = '';
+                if (document.getElementById('regDueDay')) document.getElementById('regDueDay').value = '';
                 await loadData();
                 showSection('users');
             } catch(err) { alert(err.message); }
         });
     }
 
-    // ==================== MESSAGING (FULLY WORKING) ====================
+    // ==================== MESSAGING (unchanged, fully working) ====================
     async function updateUnreadBadge() {
         try {
             const res = await fetch('/api/messages/unread/count', { headers: { 'Authorization': `Bearer ${token}` } });
@@ -347,37 +710,29 @@
             else { badge.style.display = 'none'; }
         } catch(e) { console.warn(e); }
     }
-
     function initSocket() {
         if (!token) return;
         socket = io({ auth: { token } });
         socket.on('connect', () => console.log('Socket connected'));
         socket.on('new message', (msg) => {
-            console.log('📨 new message:', msg);
             updateUnreadBadge();
-            if (msg.tempId) {
-                replaceOptimisticMessage(msg);
-                return;
-            }
+            if (msg.tempId) { replaceOptimisticMessage(msg); return; }
             if (currentChatUserId && (msg.fromUser._id === currentChatUserId || msg.toUser._id === currentChatUserId)) {
                 appendIncomingMessage(msg);
-                if (msg.fromUser._id === currentChatUserId) {
-                    socket.emit('message seen', { messageId: msg._id, fromUserId: msg.fromUser._id });
-                }
+                if (msg.fromUser._id === currentChatUserId) socket.emit('message seen', { messageId: msg._id, fromUserId: msg.fromUser._id });
             } else if (document.querySelector('.nav-item.active')?.getAttribute('data-section') === 'messages') {
                 renderMessages(document.getElementById('mainContent'));
             }
         });
-        socket.on('user typing', ({ fromUserId, isTyping }) => {
-            if (currentChatUserId === fromUserId) {
-                const ind = document.getElementById('typingIndicator');
-                if (ind) ind.style.display = isTyping ? 'block' : 'none';
-            }
-        });
+       socket.on('user typing', ({ fromUserId, isTyping }) => {
+    if (currentChatUserId === fromUserId) {
+        const ind = document.getElementById('typingIndicator');
+        if (ind) ind.style.display = isTyping ? 'block' : 'none';
+    }
+});
         socket.on('message read', ({ messageId }) => updateMessageStatus(messageId, 'seen'));
         socket.on('disconnect', () => console.log('Socket disconnected'));
     }
-
     function appendMessageOptimistic(text, tempId) {
         const div = document.getElementById('chatMessages');
         if (!div) return;
@@ -389,12 +744,7 @@
         div.appendChild(row);
         div.scrollTop = div.scrollHeight;
     }
-
-    function removeTempMessage(tempId) {
-        const el = document.querySelector(`.message-row[data-temp-id="${tempId}"]`);
-        if (el) el.remove();
-    }
-
+    function removeTempMessage(tempId) { const el = document.querySelector(`.message-row[data-temp-id="${tempId}"]`); if (el) el.remove(); }
     function replaceOptimisticMessage(realMsg) {
         const el = document.querySelector(`.message-row[data-temp-id="${realMsg.tempId}"]`);
         if (!el) return;
@@ -406,7 +756,6 @@
         newRow.innerHTML = `<div class="message-bubble ${isOutgoing ? 'outgoing' : 'incoming'}"><div>${escapeHtml(realMsg.message)}</div><div class="message-meta">${new Date(realMsg.createdAt).toLocaleTimeString()} <i class="fas fa-check"></i></div></div>`;
         el.replaceWith(newRow);
     }
-
     function appendIncomingMessage(msg) {
         const div = document.getElementById('chatMessages');
         if (!div) return;
@@ -419,76 +768,46 @@
         div.appendChild(row);
         div.scrollTop = div.scrollHeight;
     }
-
     function updateMessageStatus(messageId, status) {
         const meta = document.querySelector(`.message-row[data-msg-id="${messageId}"] .message-meta`);
         if (meta && status === 'seen') meta.innerHTML = `${new Date().toLocaleTimeString()} <i class="fas fa-check-double"></i>`;
     }
-
     async function renderMessages(container) {
         updateUnreadBadge();
         container.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-pulse"></i> Loading messages...</div>`;
         try {
-           let contacts = [];
-let unreadPerContact = {};
-try {
-    contacts = await apiGet('/api/messages/contacts');
-} catch(e) { console.warn('Failed to fetch contacts', e); contacts = []; }
-try {
-    unreadPerContact = await apiGet('/api/messages/unread-per-contact');
-} catch(e) { console.warn('Failed to fetch unread per contact', e); unreadPerContact = {}; }
+            let contacts = [], unreadPerContact = {};
+            try { contacts = await apiGet('/api/messages/contacts'); } catch(e) { console.warn(e); contacts = []; }
+            try { unreadPerContact = await apiGet('/api/messages/unread-per-contact'); } catch(e) { console.warn(e); unreadPerContact = {}; }
             allContacts = contacts;
             let contactsHtml = `<div class="contacts-list">`;
-            if (contacts.length === 0) {
-                contactsHtml += `<div class="empty-state">No conversations yet.</div>`;
-            } else {
+            if (contacts.length === 0) contactsHtml += `<div class="empty-state">No conversations yet.</div>`;
+            else {
                 contacts.forEach(contact => {
-                    const isOnline = contact.lastSeen && (new Date() - new Date(contact.lastSeen) < 120000);
-                    const unreadCount = unreadPerContact[contact._id] || 0;
-                    contactsHtml += `
-                        <div class="contact-item" data-user-id="${contact._id}" data-user-name="${contact.name}">
-                            <div class="avatar">${contact.name.charAt(0)}</div>
-                            ${isOnline ? '<div class="online-dot"></div>' : ''}
-                            <div class="contact-info">
-                                <div class="contact-name">
-                                    ${escapeHtml(contact.name)}
-                                    ${unreadCount > 0 ? `<span class="unread-badge">${unreadCount}</span>` : ''}
-                                </div>
-                                <div class="contact-lastseen">${isOnline ? 'Online' : (contact.lastSeen ? `Last seen ${new Date(contact.lastSeen).toLocaleString()}` : 'Offline')}</div>
-                            </div>
-                        </div>
-                    `;
-                });
+const isOnline = contact.lastSeen && (new Date() - new Date(contact.lastSeen) < 120000);
+const unreadCount = unreadPerContact[contact._id] || 0;
+const avatarInitial = contact.name.charAt(0).toUpperCase();
+contactsHtml += `
+    <div class="contact-item" data-user-id="${contact._id}" data-user-name="${contact.name}">
+        <div class="avatar-wrapper">
+            <div class="avatar">${avatarInitial}</div>
+            ${isOnline ? '<div class="online-dot"></div>' : ''}
+        </div>
+        <div class="contact-info">
+            <div class="contact-name">${escapeHtml(contact.name)}${unreadCount>0 ? `<span class="unread-badge">${unreadCount}</span>` : ''}</div>
+            <div class="contact-lastseen">${isOnline ? 'Online' : (contact.lastSeen ? `Last seen ${new Date(contact.lastSeen).toLocaleString()}` : 'Offline')}</div>
+        </div>
+    </div>
+`;                });
             }
             contactsHtml += `</div>`;
-
-            if (currentUser.role !== 'client') {
-                contactsHtml += `<div class="card" style="margin-top:1rem;"><div class="card-header">Start new chat</div><div class="card-body"><select id="newChatSelect"><option value="">Select tenant...</option>${allClients.filter(c=>c.role==='client').map(c=>`<option value="${c._id}" data-name="${c.name}" data-username="${c.username}">${c.name} (${c.room})</option>`).join('')}</select><button class="primary-btn" id="startNewChatBtn">Message</button></div></div>`;
-            }
-
+            if (currentUser.role !== 'client') contactsHtml += `<div class="card" style="margin-top:1rem;"><div class="card-header">Start new chat</div><div class="card-body"><select id="newChatSelect">${allClients.filter(c=>c.role==='client').map(c=>`<option value="${c._id}" data-name="${c.name}" data-username="${c.username}">${c.name} (${c.room})</option>`).join('')}</select><button class="primary-btn" id="startNewChatBtn">Message</button></div></div>`;
             const chatHtml = `<div class="chat-view" id="chatView"><div class="back-to-contacts"><button class="small" id="backBtn"><i class="fas fa-arrow-left"></i> Back</button></div><div style="display:flex; justify-content:space-between; padding:1rem; border-bottom:1px solid #eee;"><div class="chat-header" id="chatHeader"></div><button id="deleteConversationBtn" class="small" style="background:#fee2e2; color:#b91c1c;">Delete</button></div><div class="chat-messages" id="chatMessages"></div><div id="typingIndicator" style="display:none; padding:0.25rem 1rem;">Typing...</div><div class="chat-input"><input id="chatInput" placeholder="Type a message..."><button class="primary-btn" id="sendChatBtn">Send</button></div></div>`;
             container.innerHTML = `<div class="messages-container">${contactsHtml}${chatHtml}</div>`;
-
-            // Attach event listeners
-            document.querySelectorAll('.contact-item').forEach(el => {
-                el.addEventListener('click', async () => {
-                    const userId = el.getAttribute('data-user-id');
-                    const userName = el.getAttribute('data-user-name');
-                    await openChat(userId, userName);
-                });
-            });
+            document.querySelectorAll('.contact-item').forEach(el => el.addEventListener('click', async () => { const userId = el.getAttribute('data-user-id'), userName = el.getAttribute('data-user-name'); await openChat(userId, userName); }));
             const startBtn = document.getElementById('startNewChatBtn');
-            if (startBtn) startBtn.addEventListener('click', async () => {
-                const sel = document.getElementById('newChatSelect');
-                if (sel.value) {
-                    const opt = sel.options[sel.selectedIndex];
-                    await openChat(sel.value, opt.getAttribute('data-name'));
-                }
-            });
-            document.getElementById('backBtn')?.addEventListener('click', () => {
-                document.getElementById('chatView').style.display = 'none';
-                currentChatUserId = null;
-            });
+            if (startBtn) startBtn.addEventListener('click', async () => { const sel = document.getElementById('newChatSelect'); if (sel.value) { const opt = sel.options[sel.selectedIndex]; await openChat(sel.value, opt.getAttribute('data-name')); } });
+            document.getElementById('backBtn')?.addEventListener('click', () => { document.getElementById('chatView').style.display = 'none'; currentChatUserId = null; });
             const chatInput = document.getElementById('chatInput');
             let typingTimeout = null;
             chatInput?.addEventListener('input', () => {
@@ -503,8 +822,7 @@ try {
                 if (!currentChatUserId) return;
                 const text = chatInput.value.trim();
                 if (!text) return;
-                sendBtn.disabled = true;
-                sendBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
+                sendBtn.disabled = true; sendBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
                 const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
                 appendMessageOptimistic(text, tempId);
                 chatInput.value = '';
@@ -512,10 +830,7 @@ try {
                     socket.emit('private message', { toUserId: currentChatUserId, message: text, tempId });
                     setTimeout(() => {
                         const stillThere = document.querySelector(`.message-row[data-temp-id="${tempId}"]`);
-                        if (stillThere) {
-                            console.warn('Optimistic message not replaced, reloading chat');
-                            openChat(currentChatUserId, currentChatUserName);
-                        }
+                        if (stillThere) { console.warn('Optimistic not replaced, reloading chat'); openChat(currentChatUserId, currentChatUserName); }
                         if (sendBtn.disabled) { sendBtn.disabled = false; sendBtn.innerHTML = 'Send'; }
                     }, 2000);
                 } else {
@@ -524,22 +839,16 @@ try {
                         if (!recipient) throw new Error('Recipient not found');
                         await apiPost('/api/messages', { toUsername: recipient.username, subject: 'Chat', message: text });
                         await openChat(currentChatUserId, currentChatUserName);
-                    } catch(err) { alert(err.message); removeTempMessage(tempId); }
-                    finally { sendBtn.disabled = false; sendBtn.innerHTML = 'Send'; }
+                    } catch(err) { alert(err.message); removeTempMessage(tempId); } finally { sendBtn.disabled = false; sendBtn.innerHTML = 'Send'; }
                 }
             };
             sendBtn?.addEventListener('click', sendMessage);
             chatInput?.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
-        } catch(err) {
-            container.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
-        }
+        } catch(err) { container.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`; }
     }
-
     async function openChat(userId, userName) {
         currentChatUserId = userId; currentChatUserName = userName;
-        const chatView = document.getElementById('chatView');
-        const chatHeader = document.getElementById('chatHeader');
-        const chatMessagesDiv = document.getElementById('chatMessages');
+        const chatView = document.getElementById('chatView'), chatHeader = document.getElementById('chatHeader'), chatMessagesDiv = document.getElementById('chatMessages');
         if (!chatView || !chatHeader || !chatMessagesDiv) return;
         chatHeader.innerHTML = `<i class="fas fa-user-circle"></i> ${escapeHtml(userName)}`;
         chatMessagesDiv.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-pulse"></i> Loading messages...</div>';
@@ -571,37 +880,51 @@ try {
                     renderMessages(document.getElementById('mainContent'));
                 }
             };
-        } catch(err) {
-            chatMessagesDiv.innerHTML = '<div class="empty-state">Failed to load messages.</div>';
+        } catch(err) { chatMessagesDiv.innerHTML = '<div class="empty-state">Failed to load messages.</div>'; }
+    }
+let isLoading = false;
+async function showSection(section) {
+    if (isLoading) return;
+    isLoading = true;
+    const container = document.getElementById('mainContent');
+    container.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-pulse fa-2x"></i><br>Loading ${section}...</div>`;
+
+    try {
+        if (section !== 'messages') await loadData();
+        else await loadData();
+
+        if (section === 'dashboard') renderDashboard(container);
+        else if (section === 'bills') renderBills(container);
+        else if (section === 'users' && currentUser.role === 'admin') renderUsers(container);
+        else if (section === 'addBill' && (currentUser.role === 'admin' || currentUser.role === 'special')) renderAddBill(container);
+        else if (section === 'messages') await renderMessages(container);
+        else renderDashboard(container);
+    } catch (err) {
+        container.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
+    } finally {
+        isLoading = false;
+        // Calculate header height (including any sticky elements)
+        const header = document.querySelector('.header');
+        const headerHeight = header ? header.offsetHeight : 0;
+        // Scroll to top of main content, accounting for header height
+        window.scrollTo({ top: headerHeight, behavior: 'smooth' });
+        // Alternative: scroll to the main container
+        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Then adjust for header if needed
+        if (headerHeight > 0) {
+            window.scrollBy({ top: -headerHeight, behavior: 'smooth' });
         }
     }
 
-    // ==================== NAVIGATION ====================
-    let isLoading = false;
-    async function showSection(section) {
-        if (isLoading) return;
-        isLoading = true;
-        const container = document.getElementById('mainContent');
-        container.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-pulse"></i> Loading ${section}...</div>`;
-        try {
-            if (section !== 'messages') await loadData();
-            else await loadData();
-            if (section === 'dashboard') renderDashboard(container);
-            else if (section === 'bills') renderBills(container);
-            else if (section === 'users' && currentUser.role === 'admin') renderUsers(container);
-            else if (section === 'addBill' && (currentUser.role === 'admin' || currentUser.role === 'special')) renderAddBill(container);
-            else if (section === 'messages') await renderMessages(container);
-            else renderDashboard(container);
-        } catch(err) { container.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`; }
-        finally { isLoading = false; }
-        document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
-        const activeBtn = document.querySelector(`.nav-item[data-section="${section}"]`);
-        if (activeBtn) activeBtn.classList.add('active');
-    }
+    document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.querySelector(`.nav-item[data-section="${section}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+}
 
+
+   
     function logout() { localStorage.clear(); window.location.href = '/'; }
-    async function setupPush() { /* optional, keep your existing if any */ }
-
+    async function setupPush() {}
     window.onload = async () => {
         await loadUser();
         await loadData();
@@ -612,6 +935,40 @@ try {
         if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.warn);
         setInterval(async () => { if (token) try { await fetch('/api/heartbeat', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }); } catch(e) {} }, 30000);
     };
+
+    window.showComputation = async (billId) => {
+    try {
+        const bill = await apiGet(`/api/bills/${billId}`);
+        if (!bill) return;
+        // Build modal content
+        let rows = `
+            <div class="modal-overlay" id="computationModal">
+                <div class="modal-content">
+                    <h3>Bill Computation</h3>
+                    <table>
+                        <tr><td>Description:</td><td>${escapeHtml(bill.description)}</td></tr>
+                        <tr><td>Previous Reading:</td><td>${bill.previousReading ?? 'N/A'} kWh</td></tr>
+                        <tr><td>Current Reading:</td><td>${bill.currentReading ?? 'N/A'} kWh</td></tr>
+                        <tr><td>Consumption:</td><td>${bill.consumptionKwh ?? 'N/A'} kWh</td></tr>
+                        <tr><td>Rate per kWh:</td><td>₱${bill.ratePerKwh ?? '0'}</td></tr>
+                        <tr><td>Subtotal:</td><td>₱${((bill.consumptionKwh || 0) * (bill.ratePerKwh || 0)).toFixed(2)}</td></tr>
+                        <tr><td>Minimum Amount:</td><td>${bill.minimumAmount ? `₱${bill.minimumAmount}` : 'None'}</td></tr>
+                        <tr><td><strong>Final Amount:</strong></td><td><strong>₱${bill.amount.toFixed(2)}</strong></td></tr>
+                    </table>
+                    <button class="primary-btn" onclick="closeComputationModal()">Close</button>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', rows);
+    } catch(err) {
+        alert('Failed to load computation details: ' + err.message);
+    }
+};
+
+window.closeComputationModal = () => {
+    const modal = document.getElementById('computationModal');
+    if (modal) modal.remove();
+};
 </script>
 </body>
 </html>
