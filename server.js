@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
+const { authMiddleware } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,17 +19,6 @@ const User = require('./models/User');
 const Bill = require('./models/Bill');
 const Message = require('./models/Message');
 const PushSubscription = require('./models/PushSubscription');
-
-// Routes
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const billRoutes = require('./routes/bills');
-const messageRoutes = require('./routes/messages');
-
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/bills', billRoutes);
-app.use('/api/messages', messageRoutes);
 
 // ==================== Password Helper (Crypto) ====================
 const PASSWORD_SECRET = process.env.PASSWORD_SECRET || 'fallback-secret-change-this';
@@ -50,7 +40,7 @@ function verifyPassword(stored, password) {
     return hash === originalHash;
 }
 
-// ==================== Public Registration ====================
+// ==================== API Routes (order matters) ====================
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password, name, room, level, dueDay } = req.body;
@@ -74,7 +64,43 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// ==================== Push Notifications ====================
+// Heartbeat – update lastSeen
+app.post('/api/heartbeat', authMiddleware, async (req, res) => {
+    await User.findByIdAndUpdate(req.user.id, { lastSeen: new Date() });
+    res.json({ ok: true });
+});
+
+// Custom contacts endpoint – MUST be before the general /api/messages router
+app.get('/api/messages/contacts', authMiddleware, async (req, res) => {
+    try {
+        const messages = await Message.find({
+            $or: [{ fromUser: req.user.id }, { toUser: req.user.id }]
+        });
+        const contactIds = new Set();
+        messages.forEach(m => {
+            if (m.fromUser.toString() !== req.user.id) contactIds.add(m.fromUser.toString());
+            if (m.toUser.toString() !== req.user.id) contactIds.add(m.toUser.toString());
+        });
+        const contacts = await User.find({ _id: { $in: [...contactIds] } }).select('name username lastSeen');
+        res.json(contacts);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// General message routes (handles /api/messages, /api/messages/:id, etc.)
+const messageRoutes = require('./routes/messages');
+app.use('/api/messages', messageRoutes);
+
+// Auth, users, bills routes
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const billRoutes = require('./routes/bills');
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/bills', billRoutes);
+
+// Push notification subscription
 const webpush = require('web-push');
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
@@ -102,7 +128,7 @@ app.post('/api/push/subscribe', async (req, res) => {
     }
 });
 
-// Helper to send notification (used in bills & messages routes)
+// Helper for notifications
 global.sendNotificationToUser = async (userId, title, body, url = '/') => {
     if (!webpush.setVapidDetails) return;
     const subscriptions = await PushSubscription.find({ userId });
@@ -118,6 +144,18 @@ global.sendNotificationToUser = async (userId, title, body, url = '/') => {
         }
     }
 };
+
+// Quick diagnostic (optional)
+app.get('/api/check-admin', async (req, res) => {
+    try {
+        const admin = await User.findOne({ role: 'admin' });
+        if (!admin) return res.json({ exists: false });
+        const format = admin.password.includes(':') ? 'crypto' : (admin.password.startsWith('$2b$') ? 'bcrypt' : 'plain');
+        res.json({ exists: true, username: admin.username, format });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // ==================== Database & Admin Setup ====================
 mongoose.connect(process.env.MONGODB_URI)
@@ -139,7 +177,7 @@ mongoose.connect(process.env.MONGODB_URI)
     })
     .catch(err => console.error('❌ MongoDB error:', err));
 
-// ==================== Catch-all (must be last) ====================
+// ==================== Catch-all (must be LAST) ====================
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
