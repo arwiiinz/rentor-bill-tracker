@@ -6,154 +6,9 @@
     <title>Rentor · Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <link rel="stylesheet" href="/style.css">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#f9fafb">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #f5f7fb;
-            color: #1f2937;
-            padding-bottom: 5rem;
-        }
-        .app { max-width: 600px; margin: 0 auto; background: #ffffff; min-height: 100vh; box-shadow: 0 0 20px rgba(0,0,0,0.02); }
-        .header {
-            background: #ffffff;
-            padding: 1.2rem 1.25rem 0.8rem;
-            border-bottom: 1px solid #f0f2f5;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            background: rgba(255,255,255,0.96);
-            backdrop-filter: blur(8px);
-        }
-        .welcome-row { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem; }
-        .greeting h2 { font-size: 1.4rem; font-weight: 600; letter-spacing: -0.3px; }
-        .greeting p { font-size: 0.8rem; color: #6b7280; }
-        .role-badge { background: #f0f4fe; padding: 0.25rem 0.75rem; border-radius: 40px; font-size: 0.7rem; font-weight: 600; color: #2c3e8f; }
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(255,255,255,0.96);
-            backdrop-filter: blur(12px);
-            border-top: 1px solid #f0f2f5;
-            display: flex;
-            justify-content: space-around;
-            padding: 0.65rem 1rem 1rem;
-            max-width: 600px;
-            margin: 0 auto;
-            z-index: 20;
-        }
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.25rem;
-            font-size: 0.7rem;
-            background: none;
-            border: none;
-            font-family: inherit;
-            color: #9ca3af;
-            transition: color 0.2s;
-            cursor: pointer;
-            font-weight: 500;
-        }
-        .nav-item i { font-size: 1.4rem; }
-        .nav-item.active { color: #2c3e8f; }
-        .main-content { padding: 1.25rem 1.25rem 5rem; }
-        .card {
-            background: #ffffff;
-            border-radius: 28px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.03);
-            border: 1px solid #f0f2f5;
-            margin-bottom: 1.5rem;
-            overflow: hidden;
-        }
-        .card-header { padding: 1rem 1.25rem; font-weight: 600; border-bottom: 1px solid #f0f2f5; background: #fefefe; }
-        .card-body { padding: 1.2rem 1.25rem; }
-        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
-        .stat-card { background: #f9fafb; border-radius: 20px; padding: 1rem 0.5rem; text-align: center; }
-        .stat-number { font-size: 1.6rem; font-weight: 700; color: #1f2937; }
-        .stat-label { font-size: 0.7rem; color: #6b7280; }
-        .bill-item, .user-item { padding: 0.9rem 0; border-bottom: 1px solid #f0f2f5; }
-        .bill-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-        .badge { padding: 0.2rem 0.7rem; border-radius: 40px; font-size: 0.7rem; font-weight: 600; }
-        .badge-pending { background: #fff3e0; color: #b45309; }
-        .badge-paid { background: #e3f7ec; color: #15803d; }
-        button.small {
-            background: none;
-            border: none;
-            color: #4b5563;
-            font-size: 0.8rem;
-            padding: 0.3rem 0.8rem;
-            border-radius: 40px;
-            background: #f3f4f6;
-            cursor: pointer;
-        }
-        button.primary-btn {
-            background: #2c3e8f;
-            color: white;
-            padding: 0.7rem 1.2rem;
-            border-radius: 40px;
-            border: none;
-            font-weight: 500;
-            cursor: pointer;
-        }
-        input, select, textarea {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border: 1px solid #e5e7eb;
-            border-radius: 20px;
-            margin-bottom: 1rem;
-            font-family: inherit;
-        }
-        .empty-state { text-align: center; padding: 2rem; color: #9ca3af; }
-        .conversation-item { border-bottom: 1px solid #f0f2f5; margin-bottom: 0.5rem; }
-        .conversation-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.75rem 0;
-            cursor: pointer;
-        }
-        .conversation-messages {
-            margin-top: 0.5rem;
-            padding-left: 0.75rem;
-            border-left: 2px solid #e5e7eb;
-        }
-        .message-bubble {
-            background: #f9fafb;
-            border-radius: 18px;
-            padding: 0.75rem;
-            margin-bottom: 0.75rem;
-        }
-        .message-bubble.outgoing { background: #eef2ff; }
-        .message-status { font-size: 0.7rem; margin-top: 0.25rem; text-align: right; }
-        .reply-area { margin: 0.75rem 0 1rem; }
-        .reply-text { margin-bottom: 0.5rem; }
-        .delete-conv-btn {
-            background: none;
-            border: none;
-            color: #dc2626;
-            cursor: pointer;
-            font-size: 1rem;
-        }
-        .loading-spinner {
-            text-align: center;
-            padding: 3rem;
-            color: #9ca3af;
-        }
-        .btn-loading { opacity: 0.6; pointer-events: none; }
-        .spinner { animation: spin 0.6s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @media (max-width: 480px) {
-            .stat-number { font-size: 1.4rem; }
-            .card-header { padding: 0.8rem 1rem; }
-            .card-body { padding: 1rem; }
-        }
-    </style>
 </head>
 <body>
 <div class="app">
@@ -186,6 +41,61 @@
     let currentUser = null;
     let allClients = [];
     let allBills = [];
+    window.deleteBill = async (billId) => {
+    if (!confirm('Delete this bill permanently? This action cannot be undone.')) return;
+    try {
+        const res = await fetch(`/api/bills/${billId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error(await res.text());
+        alert('Bill deleted');
+        await loadData();         // refresh bills list
+        showSection('bills');     // re-render bills tab
+    } catch (err) {
+        alert('Delete failed: ' + err.message);
+    }
+};
+
+window.markPaid = async (billId) => {
+    if (!confirm('Mark this bill as paid?')) return;
+    try {
+        await fetch(`/api/bills/${billId}/pay`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        await loadData();
+        showSection('bills');
+    } catch(e) { alert('Error marking paid: ' + e.message); }
+};
+
+window.onload = async () => {
+    await loadUser();          // sets currentUser and token
+    await loadData();
+    showSection('dashboard');
+
+    // Heartbeat every 30 seconds (only if logged in)
+    setInterval(async () => {
+        if (token) {
+            try {
+                await fetch('/api/heartbeat', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            } catch(e) { console.warn('Heartbeat failed', e); }
+        }
+    }, 30000);
+};
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
 
     // --- API helpers ---
     async function apiGet(url) {
@@ -259,72 +169,181 @@
         `;
     }
 
-    function renderBills(container) {
-        container.innerHTML = `
-            <div class="card"><div class="card-header">💰 All bills</div><div class="card-body">
-                ${allBills.length ? allBills.map(b => `
-                    <div class="bill-item"><div class="bill-row">
-                        <div><strong>${b.description}</strong><br><small>${b.clientId?.name || 'Tenant'} · ${new Date(b.dueDate).toLocaleDateString()}</small></div>
-                        <div>₱${b.amount.toLocaleString()} <span class="badge ${b.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${b.status}</span>
-                        ${b.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special') ? `<button class="small" onclick="markPaid('${b._id}')">✔ Mark paid</button>` : ''}
-                        </div>
-                    </div></div>
-                `).join('') : '<div class="empty-state">No bills found</div>'}
-            </div></div>
-        `;
+// Global filter state (persist when switching tabs)
+let billsFilter = {
+    search: '',
+    status: 'all',
+    category: 'all'
+};
+
+async function renderBills(container) {
+    if (!allBills.length) {
+        container.innerHTML = `<div class="card"><div class="card-body"><div class="empty-state">No bills found.</div></div></div>`;
+        return;
     }
 
-    window.markPaid = async (id) => {
-        if (!confirm('Mark this bill as paid?')) return;
-        try {
-            await fetch(`/api/bills/${id}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
-            await loadData();
-            showSection('bills');
-        } catch(e) { alert('Error'); }
-    };
+    // Extract unique categories from all bills (for dropdown)
+    const categoriesSet = new Set();
+    allBills.forEach(b => { if (b.description) categoriesSet.add(b.description); });
+    const categories = Array.from(categoriesSet).sort();
 
-    function renderUsers(container) {
-        container.innerHTML = `
-            <div class="card"><div class="card-header">👥 Tenants & staff</div><div class="card-body">
-                ${allClients.map(u => `<div class="user-item"><div><strong>${u.name}</strong> (${u.username})<br><small>${u.room ? `Rm ${u.room} Lv.${u.level}` : ''} · ${u.role}</small></div></div>`).join('')}
-            </div></div>
-            <div class="card"><div class="card-header">➕ Register new tenant</div><div class="card-body">
-                <form id="registerFormSimple">
-                    <input type="text" placeholder="Full name" id="regName" required> 
-                    <input type="text" placeholder="Username" id="regUsername" required>
-                    <input type="password" placeholder="Password" id="regPass" required>
-                    <input type="text" placeholder="Room (e.g. 204)" id="regRoom" required>
-                    <input type="text" placeholder="Level (e.g. 2nd)" id="regLevel" required>
-                    <button class="primary-btn" type="submit" id="createTenantBtn">Create tenant account</button>
-                </form>
-            </div></div>
-        `;
-        const form = document.getElementById('registerFormSimple');
-        form?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('createTenantBtn');
-            const original = btn.innerText;
-            btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Creating...';
-            btn.disabled = true;
-            try {
-                const payload = {
-                    username: document.getElementById('regUsername').value,
-                    password: document.getElementById('regPass').value,
-                    name: document.getElementById('regName').value,
-                    role: 'client',
-                    room: document.getElementById('regRoom').value,
-                    level: document.getElementById('regLevel').value,
-                    dueDay: null
-                };
-                await apiPost('/api/users', payload);
-                alert('Tenant created');
-                await loadData();
-                showSection('users');
-            } catch(err) { alert(err.message); btn.innerHTML = original; btn.disabled = false; }
+    // Apply filters
+    let filtered = [...allBills];
+
+    // Search filter (tenant name or description)
+    if (billsFilter.search.trim() !== '') {
+        const term = billsFilter.search.toLowerCase();
+        filtered = filtered.filter(bill => {
+            const tenantName = bill.clientId?.name?.toLowerCase() || '';
+            const description = bill.description?.toLowerCase() || '';
+            return tenantName.includes(term) || description.includes(term);
         });
     }
 
-    function renderAddBill(container) {
+    // Status filter
+    if (billsFilter.status !== 'all') {
+        filtered = filtered.filter(bill => bill.status === billsFilter.status);
+    }
+
+    // Category filter
+    if (billsFilter.category !== 'all') {
+        filtered = filtered.filter(bill => bill.description === billsFilter.category);
+    }
+
+    // Build filter bar HTML
+    const filterBarHtml = `
+    <div class="filter-bar-modern">
+        <div class="filter-group filter-search">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" id="billsSearchInput" placeholder="Search tenant or bill..." value="${escapeHtml(billsFilter.search)}">
+        </div>
+        <div class="filter-group">
+            <select id="billsStatusFilter">
+                <option value="all" ${billsFilter.status === 'all' ? 'selected' : ''}>All status</option>
+                <option value="pending" ${billsFilter.status === 'pending' ? 'selected' : ''}>Pending</option>
+                <option value="paid" ${billsFilter.status === 'paid' ? 'selected' : ''}>Paid</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <select id="billsCategoryFilter">
+                <option value="all" ${billsFilter.category === 'all' ? 'selected' : ''}>All categories</option>
+                ${categories.map(cat => `<option value="${escapeHtml(cat)}" ${billsFilter.category === cat ? 'selected' : ''}>${escapeHtml(cat)}</option>`).join('')}
+            </select>
+        </div>
+        <button class="reset-modern" id="billsResetFiltersBtn">
+            <i class="fas fa-times-circle"></i> Reset
+        </button>
+    </div>
+`;
+
+    if (filtered.length === 0) {
+        container.innerHTML = filterBarHtml + `<div class="empty-state">No bills match your filters.</div>`;
+        attachFilterEvents();
+        return;
+    }
+
+    // Group filtered bills by client
+    const billsByClient = new Map();
+    for (const bill of filtered) {
+        const client = bill.clientId;
+        if (!client) continue;
+        const clientId = client._id;
+        if (!billsByClient.has(clientId)) {
+            billsByClient.set(clientId, {
+                clientName: client.name,
+                clientRoom: client.room,
+                clientLevel: client.level,
+                bills: []
+            });
+        }
+        billsByClient.get(clientId).bills.push(bill);
+    }
+
+    // Generate HTML for each client
+    let clientsHtml = '';
+    for (const [clientId, clientData] of billsByClient) {
+        // Group by description within client
+        const groupedByDesc = new Map();
+        for (const bill of clientData.bills) {
+            const desc = bill.description;
+            if (!groupedByDesc.has(desc)) groupedByDesc.set(desc, []);
+            groupedByDesc.get(desc).push(bill);
+        }
+
+        clientsHtml += `
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <strong>${escapeHtml(clientData.clientName)}</strong> 
+                    <span style="font-size:0.8rem; color:#6b7280;">(Rm ${escapeHtml(clientData.clientRoom)}, ${escapeHtml(clientData.clientLevel)})</span>
+                </div>
+                <div class="card-body">
+        `;
+
+        for (const [category, bills] of groupedByDesc) {
+            const sortedBills = [...bills].sort((a,b) => new Date(b.dueDate) - new Date(a.dueDate));
+            clientsHtml += `
+                <div style="margin-bottom: 1rem;">
+                    <div style="font-weight:600; margin-bottom:0.5rem;">${escapeHtml(category)}</div>
+                    <div style="margin-left: 0.5rem;">
+            `;
+            for (const bill of sortedBills) {
+                const dueDate = new Date(bill.dueDate);
+                const monthYear = dueDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+                clientsHtml += `
+                    <div class="bill-item" style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0;">
+                        <div>
+                            ${monthYear} — ₱${bill.amount.toLocaleString()}
+                            <span class="badge ${bill.status === 'pending' ? 'badge-pending' : 'badge-paid'}" style="margin-left:0.5rem;">${bill.status}</span>
+                        </div>
+                        <div>
+                            ${bill.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special') ? 
+                                `<button class="small" onclick="markPaid('${bill._id}')">✔ Mark paid</button>` : ''
+                            }
+                            ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
+                                `<button class="small" onclick="deleteBill('${bill._id}')" style="background:#fee2e2; color:#b91c1c;">🗑 Delete</button>` : ''
+                            }
+                        </div>
+                    </div>
+                `;
+            }
+            clientsHtml += `</div></div>`;
+        }
+        clientsHtml += `</div></div>`;
+    }
+
+    container.innerHTML = filterBarHtml + clientsHtml;
+    attachFilterEvents();
+}
+
+function attachFilterEvents() {
+    const searchInput = document.getElementById('billsSearchInput');
+    const statusSelect = document.getElementById('billsStatusFilter');
+    const categorySelect = document.getElementById('billsCategoryFilter');
+    const resetBtn = document.getElementById('billsResetFiltersBtn');
+
+    const updateFilters = () => {
+        billsFilter.search = searchInput ? searchInput.value : '';
+        billsFilter.status = statusSelect ? statusSelect.value : 'all';
+        billsFilter.category = categorySelect ? categorySelect.value : 'all';
+        showSection('bills');
+    };
+
+    if (searchInput) searchInput.addEventListener('input', updateFilters);
+    if (statusSelect) statusSelect.addEventListener('change', updateFilters);
+    if (categorySelect) categorySelect.addEventListener('change', updateFilters);
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            if (searchInput) searchInput.value = '';
+            if (statusSelect) statusSelect.value = 'all';
+            if (categorySelect) categorySelect.value = 'all';
+            billsFilter.search = '';
+            billsFilter.status = 'all';
+            billsFilter.category = 'all';
+            showSection('bills');
+        });
+    }
+}
+   function renderAddBill(container) {
         container.innerHTML = `
             <div class="card"><div class="card-header">➕ Add new bill</div><div class="card-body">
                 <form id="billFormSimple">
@@ -358,63 +377,226 @@
     }
 
     // ==================== MESSAGING (grouped conversations) ====================
-    async function renderMessages(container) {
-        container.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-pulse fa-2x"></i><br>Loading messages...</div>`;
-        try {
-            const messages = await apiGet('/api/messages');
-            const conversations = new Map();
-            for (const msg of messages) {
-                const other = msg.fromUser._id === currentUser.id ? msg.toUser : msg.fromUser;
-                if (!other) continue;
-                const key = other._id;
-                if (!conversations.has(key)) conversations.set(key, { user: other, messages: [] });
-                conversations.get(key).messages.push(msg);
-            }
-            if (conversations.size === 0) {
-                container.innerHTML = `
-                    <div class="card"><div class="card-header">💬 Messages</div><div class="card-body"><div class="empty-state">No conversations yet. Send a message below.</div></div></div>
-                    <div class="card"><div class="card-header">New Message</div><div class="card-body">${composeFormHtml()}</div></div>
-                `;
-                attachComposeHandler();
-                return;
-            }
-            let convHtml = '';
-            for (let [userId, conv] of conversations) {
-                const unread = conv.messages.filter(m => !m.isRead && m.toUser?._id === currentUser.id).length;
-                convHtml += `
-                    <div class="conversation-item" data-user-id="${userId}" data-username="${conv.user.username}" data-user-name="${conv.user.name}">
-                        <div class="conversation-header">
-                            <div><strong>${conv.user.name}</strong> <span class="text-muted">(@${conv.user.username})</span>${unread ? `<span class="badge bg-danger rounded-pill ms-2">${unread}</span>` : ''}</div>
-                            <button class="delete-conv-btn" data-user-id="${userId}"><i class="fas fa-trash"></i></button>
-                        </div>
-                        <div class="conversation-messages" style="display:none;">
-                            ${conv.messages.map(msg => `
-                                <div class="message-bubble ${msg.fromUser._id === currentUser.id ? 'outgoing' : 'incoming'}">
-                                    <div><small><strong>${msg.fromUser.name}</strong> · ${new Date(msg.createdAt).toLocaleString()}</small></div>
-                                    <div>${msg.message}</div>
-                                    <div class="message-status">
-                                        ${msg.fromUser._id === currentUser.id ? (msg.isRead ? '<i class="fas fa-check-double" style="color:#15803d;"></i> Seen' : '<i class="fas fa-check"></i> Delivered') : ''}
-                                    </div>
-                                </div>
-                            `).join('')}
-                            <div class="reply-area">
-                                <textarea class="reply-text" rows="2" placeholder="Type your reply..."></textarea>
-                                <button class="small send-reply-btn" data-user-id="${userId}">Send Reply</button>
-                            </div>
-                        </div>
+let currentChatUserId = null;
+let allContacts = [];
+
+async function renderMessages(container) {
+    container.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-pulse"></i> Loading...</div>`;
+
+    const contacts = await apiGet('/api/messages/contacts');
+    allContacts = contacts;
+
+    let contactsHtml = `<div class="contacts-list">`;
+    if (contacts.length === 0) {
+        contactsHtml += `<div class="empty-state" style="padding:2rem;">No conversations yet. Start a new chat below.</div>`;
+    } else {
+        contacts.forEach(contact => {
+            const isOnline = contact.lastSeen && (new Date() - new Date(contact.lastSeen) < 2 * 60 * 1000);
+            const avatarInitial = contact.name.charAt(0).toUpperCase();
+            contactsHtml += `
+                <div class="contact-item" data-user-id="${contact._id}" data-user-name="${contact.name}">
+                    <div style="position:relative;">
+                        <div class="avatar">${avatarInitial}</div>
+                        ${isOnline ? '<div class="online-dot"></div>' : ''}
                     </div>
-                `;
-            }
-            container.innerHTML = `
-                <div class="card"><div class="card-header">💬 Conversations</div><div class="card-body">${convHtml}</div></div>
-                <div class="card"><div class="card-header">New Message</div><div class="card-body">${composeFormHtml()}</div></div>
+                    <div class="contact-info">
+                        <div class="contact-name">${escapeHtml(contact.name)}</div>
+                        <div class="contact-lastseen">${isOnline ? 'Online' : (contact.lastSeen ? `Last seen ${new Date(contact.lastSeen).toLocaleString()}` : 'Offline')}</div>
+                    </div>
+                </div>
             `;
-            attachConversationHandlers();
-            attachComposeHandler();
-        } catch (err) {
-            container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
-        }
+        });
     }
+    contactsHtml += `</div>`;
+
+    if (currentUser.role !== 'client') {
+        contactsHtml += `
+            <div class="card" style="margin-top:1rem;">
+                <div class="card-header">Start new chat</div>
+                <div class="card-body">
+                    <select id="newChatSelect" style="width:100%;">
+                        <option value="">Select tenant...</option>
+                        ${allClients.filter(c => c.role === 'client').map(c => `<option value="${c._id}" data-name="${c.name}" data-username="${c.username}">${c.name} (${c.room})</option>`).join('')}
+                    </select>
+                    <button class="primary-btn" id="startNewChatBtn" style="margin-top:0.5rem;">Message</button>
+                </div>
+            </div>
+        `;
+    }
+
+    const chatHtml = `
+        <div class="chat-view" id="chatView">
+            <div class="back-to-contacts"><button class="small" id="backBtn"><i class="fas fa-arrow-left"></i> Back</button></div>
+            <div class="chat-header" style="padding:1rem; border-bottom:1px solid #f0f2f5; font-weight:600;" id="chatHeader"></div>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input">
+                <input type="text" id="chatInput" placeholder="Type a message...">
+                <button class="primary-btn" id="sendChatBtn" style="width:auto; padding:0.7rem 1.2rem;">Send</button>
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = `<div class="messages-container">${contactsHtml}${chatHtml}</div>`;
+
+    // Contact click handlers
+    document.querySelectorAll('.contact-item').forEach(el => {
+        el.addEventListener('click', async () => {
+            const userId = el.getAttribute('data-user-id');
+            const userName = el.getAttribute('data-user-name');
+            await openChat(userId, userName);
+        });
+    });
+
+    // Start new chat
+    const newChatSelect = document.getElementById('newChatSelect');
+    const startBtn = document.getElementById('startNewChatBtn');
+    if (startBtn) {
+        startBtn.addEventListener('click', async () => {
+            const selected = newChatSelect.value;
+            if (!selected) return;
+            const option = newChatSelect.options[newChatSelect.selectedIndex];
+            const name = option.getAttribute('data-name');
+            await openChat(selected, name);
+        });
+    }
+
+    // Back button – close chat view
+    document.getElementById('backBtn')?.addEventListener('click', () => {
+        const chatView = document.getElementById('chatView');
+        chatView.style.display = 'none';
+        chatView.classList.remove('active-mobile');
+        currentChatUserId = null;
+    });
+
+    // Send message handler
+    const sendBtn = document.getElementById('sendChatBtn');
+    const chatInput = document.getElementById('chatInput');
+    const sendMessage = async () => {
+        if (!currentChatUserId) return;
+        const text = chatInput.value.trim();
+        if (!text) return;
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
+        try {
+            const recipientUser = allContacts.find(c => c._id === currentChatUserId) || 
+                                  allClients.find(c => c._id === currentChatUserId);
+            const toUsername = recipientUser?.username;
+            if (!toUsername) throw new Error('Recipient not found');
+            await apiPost('/api/messages', { toUsername, subject: 'Chat', message: text });
+            chatInput.value = '';
+            await openChat(currentChatUserId, '');
+        } catch(err) { alert(err.message); }
+        finally { sendBtn.disabled = false; sendBtn.innerHTML = 'Send'; }
+    };
+    sendBtn?.addEventListener('click', sendMessage);
+    chatInput?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+}
+
+
+function renderUsers(container) {
+    container.innerHTML = `
+        <div class="card"><div class="card-header">👥 Tenants & staff</div><div class="card-body">
+            ${allClients.map(u => `<div class="user-item"><div><strong>${escapeHtml(u.name)}</strong> (${escapeHtml(u.username)})<br><small>${u.room ? `Rm ${u.room} Lv.${u.level}` : ''} · ${u.role}</small></div></div>`).join('')}
+        </div></div>
+        <div class="card"><div class="card-header">➕ Register new tenant</div><div class="card-body">
+            <form id="registerFormSimple">
+                <input type="text" placeholder="Full name" id="regName" required> 
+                <input type="text" placeholder="Username" id="regUsername" required>
+                <input type="password" placeholder="Password" id="regPass" required>
+                <input type="text" placeholder="Room (e.g. 204)" id="regRoom" required>
+                <input type="text" placeholder="Level (e.g. 2nd)" id="regLevel" required>
+                <button class="primary-btn" type="submit" id="createTenantBtn">Create tenant account</button>
+            </form>
+        </div></div>
+    `;
+    const form = document.getElementById('registerFormSimple');
+    form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('createTenantBtn');
+        const original = btn.innerText;
+        btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Creating...';
+        btn.disabled = true;
+        try {
+            const payload = {
+                username: document.getElementById('regUsername').value,
+                password: document.getElementById('regPass').value,
+                name: document.getElementById('regName').value,
+                role: 'client',
+                room: document.getElementById('regRoom').value,
+                level: document.getElementById('regLevel').value,
+                dueDay: null
+            };
+            await apiPost('/api/users', payload);
+            alert('Tenant created');
+            await loadData();
+            showSection('users');
+        } catch(err) { alert(err.message); btn.innerHTML = original; btn.disabled = false; }
+    });
+}
+
+async function openChat(userId, userName) {
+    console.log('openChat called', userId, userName);
+    currentChatUserId = userId;
+    const chatView = document.getElementById('chatView');
+    const chatHeader = document.getElementById('chatHeader');
+    const chatMessagesDiv = document.getElementById('chatMessages');
+    if (!chatView || !chatHeader || !chatMessagesDiv) {
+        console.error('Chat elements not found');
+        return;
+    }
+    chatHeader.innerHTML = `<i class="fas fa-user-circle"></i> ${escapeHtml(userName)}`;
+    chatMessagesDiv.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-pulse"></i> Loading messages...</div>';
+    chatView.style.display = 'flex';
+    if (window.innerWidth <= 600) chatView.classList.add('active-mobile');
+
+    try {
+        const messages = await apiGet(`/api/messages?withUserId=${userId}`);
+        const sorted = [...messages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        chatMessagesDiv.innerHTML = '';
+        
+        if (sorted.length === 0) {
+            chatMessagesDiv.innerHTML = '<div class="empty-state">No messages yet. Send a message to start the conversation.</div>';
+            return;
+        }
+
+        for (const msg of sorted) {
+            // Safely get sender ID
+            let senderId = msg.fromUser;
+            if (msg.fromUser && typeof msg.fromUser === 'object') {
+                senderId = msg.fromUser._id;
+            }
+            // Determine if this message is from the current user
+            const isOutgoing = String(senderId) === String(currentUser.id);
+            
+            // Create message row with inline styles for guaranteed alignment
+            const row = document.createElement('div');
+            row.className = `message-row ${isOutgoing ? 'outgoing' : 'incoming'}`;
+            row.style.display = 'flex';
+            row.style.width = '100%';
+            row.style.justifyContent = isOutgoing ? 'flex-end' : 'flex-start';
+            
+            // Bubble styling
+            const bubbleStyle = isOutgoing
+                ? 'background: #2c3e8f; color: white; border-bottom-right-radius: 4px;'
+                : 'background: #f3f4f6; color: #1f2937; border-bottom-left-radius: 4px;';
+            
+            row.innerHTML = `
+                <div class="message-bubble" style="max-width: 80%; padding: 0.6rem 1rem; border-radius: 20px; word-wrap: break-word; ${bubbleStyle}">
+                    <div>${escapeHtml(msg.message)}</div>
+                    <div class="message-meta" style="font-size: 0.65rem; margin-top: 0.25rem; display: flex; gap: 0.5rem;">
+                        <span>${new Date(msg.createdAt).toLocaleString()}</span>
+                        ${isOutgoing ? (msg.isRead ? '<i class="fas fa-check-double"></i>' : '<i class="fas fa-check"></i>') : ''}
+                    </div>
+                </div>
+            `;
+            chatMessagesDiv.appendChild(row);
+        }
+        chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+    } catch (err) {
+        console.error('Error loading messages:', err);
+        chatMessagesDiv.innerHTML = '<div class="empty-state">Failed to load messages.</div>';
+    }
+}
 
     function composeFormHtml() {
         return `
