@@ -88,9 +88,28 @@
     }
 async function printAllReceipts() {
     try {
-        const paidBills = allBills.filter(bill => bill.status === 'paid');
+        const monthInput = document.getElementById('printMonth');
+        if (!monthInput) {
+            alert('Month selector not found');
+            return;
+        }
+        const [year, month] = monthInput.value.split('-');
+        if (!year || !month) {
+            alert('Invalid month selection');
+            return;
+        }
+        const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+        const endDate = new Date(parseInt(year), parseInt(month), 0); // last day of month
+
+        const paidBills = allBills.filter(bill => {
+            if (bill.status !== 'paid') return false;
+            if (!bill.paidDate) return false;
+            const paid = new Date(bill.paidDate);
+            return paid >= startDate && paid <= endDate;
+        });
+
         if (!paidBills.length) {
-            alert('No paid bills to print.');
+            alert(`No paid bills found for ${monthInput.value}.`);
             return;
         }
 
@@ -113,7 +132,6 @@ async function printAllReceipts() {
             group.total += bill.amount;
         }
 
-        // Build receipt cards
         let allCards = [];
         for (const [clientId, clientData] of billsByClient) {
             clientData.bills.sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
@@ -147,7 +165,7 @@ async function printAllReceipts() {
                     <div class="receipt-details">
                         ${billsListHtml}
                         <div style="margin-top:0.3rem; font-weight:700; text-align:right; font-size:0.75rem; border-top:1px solid #ccc; padding-top:0.2rem;">
-                            TOTAL: ₱${clientData.total.toLocaleString()}
+                            TOTAL PAID: ₱${clientData.total.toLocaleString()}
                         </div>
                     </div>
                     <div class="footer">Rentor System</div>
@@ -156,7 +174,7 @@ async function printAllReceipts() {
         }
 
         if (!allCards.length) {
-            alert('No valid client data to print.');
+            alert('No valid client data for the selected month.');
             return;
         }
 
@@ -182,95 +200,28 @@ async function printAllReceipts() {
             `;
         }
 
+        const monthName = new Date(parseInt(year), parseInt(month)-1).toLocaleString('default', { month: 'long', year: 'numeric' });
         const receiptHtml = `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Batch Receipts - Paid Bills (Full Page)</title>
+    <title>Batch Receipts - ${monthName}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-        body {
-            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-            background: white;
-            display: flex;
-            flex-direction: column;
-        }
-        @page {
-            size: landscape;
-            margin: 0.8cm;
-        }
-        .page-container {
-            page-break-after: always;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-        }
-        .page-container:last-child {
-            page-break-after: auto;
-        }
-        .receipt-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            grid-auto-rows: 1fr;
-            gap: 0.4rem;
-            flex: 1;
-            min-height: 0;
-            height: 100%;
-        }
-        .receipt-card {
-            border: 1px solid #9ca3af;
-            border-radius: 4px;
-            padding: 0.5rem;
-            background: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            overflow: hidden;
-            height: 100%;
-        }
-        .empty-card {
-            border: 1px dashed #d1d5db;
-            background: #f9fafb;
-        }
-        .receipt-header {
-            font-weight: 700;
-            font-size: 0.85rem;
-            border-bottom: 1px dotted #ccc;
-            margin-bottom: 0.2rem;
-            padding-bottom: 0.1rem;
-            white-space: nowrap;
-            overflow-x: auto;
-        }
-        .receipt-details {
-            font-size: 0.7rem;
-            line-height: 1.2;
-            margin: 0.2rem 0;
-            flex: 1;
-            overflow-y: auto;
-        }
-        .footer {
-            font-size: 0.55rem;
-            text-align: center;
-            margin-top: 0.2rem;
-            color: #64748b;
-        }
+        html, body { height: 100%; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background: white; display: flex; flex-direction: column; }
+        @page { size: landscape; margin: 0.8cm; }
+        .page-container { page-break-after: always; height: 100%; display: flex; flex-direction: column; }
+        .page-container:last-child { page-break-after: auto; }
+        .receipt-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 1fr; gap: 0.4rem; flex: 1; min-height: 0; height: 100%; }
+        .receipt-card { border: 1px solid #9ca3af; border-radius: 4px; padding: 0.5rem; background: white; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; height: 100%; }
+        .empty-card { border: 1px dashed #d1d5db; background: #f9fafb; }
+        .receipt-header { font-weight: 700; font-size: 0.85rem; border-bottom: 1px dotted #ccc; margin-bottom: 0.2rem; padding-bottom: 0.1rem; white-space: nowrap; overflow-x: auto; }
+        .receipt-details { font-size: 0.7rem; line-height: 1.2; margin: 0.2rem 0; flex: 1; overflow-y: auto; }
+        .footer { font-size: 0.55rem; text-align: center; margin-top: 0.2rem; color: #64748b; }
         @media print {
-            body {
-                margin: 0;
-                padding: 0;
-            }
-            .receipt-card {
-                border: 1px solid #aaa;
-            }
-            .empty-card {
-                border: 1px solid #ddd;
-                background: white;
-            }
+            .receipt-card { border: 1px solid #aaa; }
+            .empty-card { border: 1px solid #ddd; background: white; }
             .no-print { display: none; }
         }
     </style>
@@ -280,12 +231,9 @@ async function printAllReceipts() {
     <div class="no-print" style="text-align:center; margin:1rem;">
         <button onclick="window.print()">🖨️ Print</button>
     </div>
-    <script>
-        window.onload = () => { window.print(); };
-    <\/script>
+    <script>window.onload = () => { window.print(); };<\/script>
 </body>
 </html>`;
-
         const win = window.open();
         win.document.write(receiptHtml);
         win.document.close();
@@ -294,7 +242,8 @@ async function printAllReceipts() {
         alert('Print failed: ' + err.message);
     }
 }
- function renderDashboard(container) {
+
+function renderDashboard(container) {
     const pending = allBills.filter(b => b.status === 'pending').length;
     const paid = allBills.filter(b => b.status === 'paid').length;
     const totalDue = allBills.filter(b => b.status === 'pending').reduce((s,b) => s + b.amount, 0);
@@ -445,10 +394,19 @@ async function renderBills(container) {
         billsByClient.get(clientId).bills.push(bill);
     }
     
-    let batchPrintButton = '';
-    if (currentUser.role === 'admin' || currentUser.role === 'special') {
-        batchPrintButton = `<button class="primary-btn" onclick="printAllReceipts()" style="margin-bottom: 1rem; background: #2c3e8f;"><i class="fas fa-print"></i> Print All Tenants (8 per page)</button>`;
-    }
+  // In renderBills, inside the batchPrintButton section:
+let batchPrintButton = '';
+if (currentUser.role === 'admin' || currentUser.role === 'special') {
+    batchPrintButton = `
+        <div style="display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1rem;">
+            <div style="flex:1;">
+                <label style="font-size:0.8rem; font-weight:500;">Select month to print (paid bills)</label>
+                <input type="month" id="printMonth" value="${new Date().toISOString().slice(0,7)}" style="margin:0;">
+            </div>
+            <button class="primary-btn" onclick="printAllReceipts()" style="background:#2c3e8f;"><i class="fas fa-print"></i> Print Receipts for Selected Month</button>
+        </div>
+    `;
+}
     // Build new UI
     let clientsHtml = '';
     for (const [clientId, clientData] of billsByClient) {
@@ -824,10 +782,10 @@ function renderAddBill(container) {
         container.innerHTML = `
             <div class="card"><div class="card-header">👥 Tenants & staff</div><div class="card-body">
                 ${allClients.map(u => `
-                    <div class="user-item" style="display:flex; justify-content:space-between; align-items:center; padding:0.75rem 0; border-bottom:1px solid #f0f2f5;">
-                        <div><strong>${escapeHtml(u.name)}</strong> (${escapeHtml(u.username)})<br><small>${u.room ? `Rm ${u.room} Lv.${u.level}` : ''} · ${u.role} ${u.dueDay ? `· Due: ${u.dueDay}` : ''}</small></div>
-                        <div><button class="small edit-user-btn" data-id="${u._id}" data-name="${escapeHtml(u.name)}" data-room="${escapeHtml(u.room)}" data-level="${escapeHtml(u.level)}" data-due="${u.dueDay || ''}">Edit</button> <button class="small delete-user-btn" data-id="${u._id}" style="background:#fee2e2; color:#b91c1c;">Delete</button></div>
-                    </div>
+                   <div class="user-item" style="display:flex; justify-content:space-between; align-items:center; padding:0.75rem 0; border-bottom:1px solid #f0f2f5;">
+    <div><strong>${escapeHtml(u.name)}</strong> (${escapeHtml(u.username)})<br><small>${u.room ? `Rm ${u.room} Lv.${u.level}` : ''} · ${u.role} ${u.dueDay ? `· Due: ${u.dueDay}` : ''}</small></div>
+    <div><button class="small edit-user-btn" data-id="${u._id}" data-name="${escapeHtml(u.name)}" data-room="${escapeHtml(u.room)}" data-level="${escapeHtml(u.level)}" data-due="${u.dueDay || ''}">Edit</button> <button class="small delete-user-btn" data-id="${u._id}" data-name="${escapeHtml(u.name)}" style="background:#fee2e2; color:#b91c1c;">Delete</button></div>
+</div>
                 `).join('')}
             </div></div>
 <div class="card"><div class="card-header">➕ Register new user</div><div class="card-body">
@@ -849,9 +807,9 @@ function renderAddBill(container) {
         // Delete user
         document.querySelectorAll('.delete-user-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
-                const userId = btn.getAttribute('data-id');
-                if (!confirm('Delete user permanently? This will delete all their data.')) return;
-                try {
+const userId = btn.getAttribute('data-id');
+const userName = btn.getAttribute('data-name');
+if (!confirm(`Delete ${userName} permanently? This will also delete ALL their bills, messages, meter readings, and settings.`)) return;                try {
                     await apiDelete(`/api/users/${userId}`);
                     alert('User deleted');
                     await loadData();
