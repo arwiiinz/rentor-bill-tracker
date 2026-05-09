@@ -2,6 +2,11 @@ const express = require('express');
 const User = require('../models/User');
 const { authMiddleware, adminOnly } = require('../middleware/auth');
 const crypto = require('crypto');
+const Bill = require('../models/Bill');
+const Message = require('../models/Message');
+const MeterReading = require('../models/MeterReading');
+const BillDefault = require('../models/BillDefault');
+const PushSubscription = require('../models/PushSubscription');
 
 const router = express.Router();
 const PASSWORD_SECRET = process.env.PASSWORD_SECRET || 'fallback-secret-change-this';
@@ -60,8 +65,24 @@ router.put('/:id', authMiddleware, adminOnly, async (req, res) => {
 });
 
 router.delete('/:id', authMiddleware, adminOnly, async (req, res) => {
-    await User.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Deleted' });
+    try {
+        const userId = req.params.id;
+        // Delete all bills for this user
+        await Bill.deleteMany({ clientId: userId });
+        // Delete all messages where user is sender or receiver
+        await Message.deleteMany({ $or: [{ fromUser: userId }, { toUser: userId }] });
+        // Delete all meter readings
+        await MeterReading.deleteMany({ clientId: userId });
+        // Delete all bill defaults
+        await BillDefault.deleteMany({ clientId: userId });
+        // Delete push subscriptions
+        await PushSubscription.deleteMany({ userId: userId });
+        // Finally delete the user themselves
+        await User.findByIdAndDelete(userId);
+        res.json({ message: 'User and all associated data deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = router;
