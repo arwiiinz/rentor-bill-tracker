@@ -77,48 +77,133 @@ body {
     padding: 1.5rem 1.5rem 5rem;
 }
 
-/* ==================== BOTTOM NAVIGATION ==================== */
+/* ==================== BOTTOM NAVIGATION - MODERN & APPEALING ==================== */
 .bottom-nav {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(12px);
-    border-top: 1px solid #f0f2f5;
+    backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(203, 213, 225, 0.5);
     display: flex;
     justify-content: space-around;
-    padding: 0.8rem 1rem 1.2rem;
+    align-items: center;
+    padding: 0.5rem 1rem;
     z-index: 20;
     max-width: 100%;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.03);
+    transition: all 0.2s ease;
 }
+
 @media (min-width: 768px) {
     .bottom-nav {
-        max-width: 1400px;
+        max-width: 1000px;
         left: 50%;
         transform: translateX(-50%);
-        padding: 0.8rem 2rem;
+        border-radius: 40px 40px 0 0;
+        padding: 0.6rem 2rem;
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(203, 213, 225, 0.3);
+        border-bottom: none;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
     }
 }
+
 .nav-item {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.3rem;
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     background: none;
     border: none;
     font-family: inherit;
-    color: #9ca3af;
-    transition: color 0.2s;
+    color: #94a3b8;
+    transition: all 0.2s ease;
     cursor: pointer;
     font-weight: 500;
+    padding: 0.4rem 1rem;
+    border-radius: 40px;
 }
+
+@media (min-width: 768px) {
+    .nav-item {
+        flex-direction: row;
+        gap: 0.6rem;
+        font-size: 0.9rem;
+        padding: 0.5rem 1.2rem;
+        border-radius: 40px;
+    }
+    .nav-item i {
+        font-size: 1.2rem;
+    }
+}
+
 .nav-item i {
-    font-size: 1.8rem;
+    font-size: 1.3rem;
 }
+
+.nav-item:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
 .nav-item.active {
+    background: #eef2ff;
     color: #2c3e8f;
+    box-shadow: 0 2px 6px rgba(44, 62, 143, 0.1);
+}
+
+/* Unread badge adjustment for new nav layout */
+.bottom-nav .nav-item {
+    position: relative;
+}
+#unreadBadge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #ef4444;
+    color: white;
+    border-radius: 9999px;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.6rem;
+    font-weight: 600;
+    min-width: 1.2rem;
+    text-align: center;
+    line-height: 1.2;
+    box-shadow: 0 0 0 1px white;
+    z-index: 1;
+}
+@media (min-width: 768px) {
+    #unreadBadge {
+        top: -2px;
+        right: -2px;
+    }
+}
+
+/* Add Bill tabs (Manual / Recurring / Meter) */
+.tab-btn {
+    background: transparent;
+    border: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.6rem 1.2rem;
+    border-radius: 40px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #64748b;
+    font-family: inherit;
+}
+.tab-btn.active {
+    background: #2c3e8f;
+    color: white;
+    box-shadow: 0 2px 6px rgba(44, 62, 143, 0.2);
+}
+.tab-btn:hover:not(.active) {
+    background: #f1f5f9;
+    color: #1e293b;
 }
 
 /* ==================== CARDS & COMMON ==================== */
@@ -174,6 +259,7 @@ body {
     flex-wrap: wrap;
     gap: 0.5rem;
 }
+
 
 .badge {
     padding: 0.4rem 1rem;

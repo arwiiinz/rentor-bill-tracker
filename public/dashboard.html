@@ -86,9 +86,19 @@
         if (!str) return '';
         return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
     }
+
+    
 async function printAllReceipts() {
     try {
         const monthInput = document.getElementById('printMonth');
+        const printModeRadios = document.querySelectorAll('input[name="printMode"]');
+        const markPaidCheckbox = document.getElementById('markPaidAfterPrint');
+        let printMode = 'paid';
+        for (let radio of printModeRadios) {
+            if (radio.checked) { printMode = radio.value; break; }
+        }
+        const shouldMarkPaid = markPaidCheckbox ? markPaidCheckbox.checked : false;
+
         if (!monthInput) {
             alert('Month selector not found');
             return;
@@ -99,23 +109,51 @@ async function printAllReceipts() {
             return;
         }
         const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-        const endDate = new Date(parseInt(year), parseInt(month), 0); // last day of month
+        const endDate = new Date(parseInt(year), parseInt(month), 0);
 
-        const paidBills = allBills.filter(bill => {
-            if (bill.status !== 'paid') return false;
-            if (!bill.paidDate) return false;
-            const paid = new Date(bill.paidDate);
-            return paid >= startDate && paid <= endDate;
-        });
+        let billsToPrint;
+        if (printMode === 'paid') {
+            billsToPrint = allBills.filter(bill => {
+                if (bill.status !== 'paid') return false;
+                if (!bill.paidDate) return false;
+                const paid = new Date(bill.paidDate);
+                return paid >= startDate && paid <= endDate;
+            });
+        } else {
+            billsToPrint = allBills.filter(bill => {
+                const due = new Date(bill.dueDate);
+                return due >= startDate && due <= endDate;
+            });
+        }
 
-        if (!paidBills.length) {
-            alert(`No paid bills found for ${monthInput.value}.`);
+        if (billsToPrint.length === 0) {
+            alert(`No bills found for ${monthInput.value}`);
             return;
         }
 
-        // Group by client
+        // Optionally mark bills as paid after printing (for pending bills in "all" mode)
+        if (shouldMarkPaid && printMode === 'all') {
+            const pendingBills = billsToPrint.filter(b => b.status === 'pending');
+            for (const bill of pendingBills) {
+                try {
+                    await fetch(`/api/bills/${bill._id}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
+                } catch(e) { console.warn('Failed to mark bill paid:', bill._id); }
+            }
+            await loadData();
+            // Re‑fetch bills to reflect updated statuses for the print preview
+            const updatedBills = await apiGet('/api/bills');
+            allBills = updatedBills;
+            if (printMode === 'all') {
+                billsToPrint = allBills.filter(bill => {
+                    const due = new Date(bill.dueDate);
+                    return due >= startDate && due <= endDate;
+                });
+            }
+        }
+
+        // Group by client (store overall total only, no pending/paid breakdown)
         const billsByClient = new Map();
-        for (const bill of paidBills) {
+        for (const bill of billsToPrint) {
             const client = bill.clientId;
             if (!client) continue;
             if (!billsByClient.has(client._id)) {
@@ -138,7 +176,7 @@ async function printAllReceipts() {
             let billsListHtml = '';
             for (const bill of clientData.bills) {
                 const dueDate = new Date(bill.dueDate).toLocaleDateString();
-                const paidDate = bill.paidDate ? new Date(bill.paidDate).toLocaleDateString() : 'N/A';
+                const paidDateHtml = bill.paidDate ? `<span>Paid: ${new Date(bill.paidDate).toLocaleDateString()}</span>` : '';
                 let computationHtml = '';
                 if (bill.ratePerKwh !== undefined && bill.ratePerKwh !== null) {
                     const consumption = bill.consumptionKwh ?? 'N/A';
@@ -151,12 +189,26 @@ async function printAllReceipts() {
                 billsListHtml += `
                     <div style="margin-bottom:0.4rem; border-bottom:1px solid #eef2f6; padding-bottom:0.3rem;">
                         <div style="font-weight:600; font-size:0.8rem;">${escapeHtml(bill.description)}</div>
-                        <div style="font-size:0.7rem;">Due:${dueDate} | Paid:${paidDate}</div>
+                        <div style="font-size:0.7rem;">Due:${dueDate} ${paidDateHtml}</div>
                         <div style="font-size:0.8rem;">Amount: ₱${bill.amount.toLocaleString()}</div>
                         ${computationHtml}
                     </div>
                 `;
             }
+
+            // Signature section (admin signs)
+            const signatureHtml = `
+                <div style="margin-top: 0.5rem; padding-top: 0.3rem; border-top: 1px dashed #ccc;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                        <div style="font-size: 0.7rem;">Admin signature: ______________________</div>
+                        <div style="font-size: 0.7rem;">Date: _____________</div>
+                    </div>
+                    <div style="margin-top: 0.2rem; font-size: 0.65rem; color: #64748b;">
+                        By signing, I confirm payment has been received.
+                    </div>
+                </div>
+            `;
+
             allCards.push(`
                 <div class="receipt-card">
                     <div class="receipt-header">
@@ -165,16 +217,17 @@ async function printAllReceipts() {
                     <div class="receipt-details">
                         ${billsListHtml}
                         <div style="margin-top:0.3rem; font-weight:700; text-align:right; font-size:0.75rem; border-top:1px solid #ccc; padding-top:0.2rem;">
-                            TOTAL PAID: ₱${clientData.total.toLocaleString()}
+                            Total: ₱${clientData.total.toLocaleString()}
                         </div>
                     </div>
-                    <div class="footer">Rentor System</div>
+                    ${signatureHtml}
+                    <div class="footer">Rentor System • Official Receipt</div>
                 </div>
             `);
         }
 
         if (!allCards.length) {
-            alert('No valid client data for the selected month.');
+            alert('No valid client data for the selected month and mode.');
             return;
         }
 
@@ -201,11 +254,12 @@ async function printAllReceipts() {
         }
 
         const monthName = new Date(parseInt(year), parseInt(month)-1).toLocaleString('default', { month: 'long', year: 'numeric' });
+        const modeText = printMode === 'paid' ? 'Paid Bills' : (shouldMarkPaid ? 'All Bills (marked paid after print)' : 'All Bills');
         const receiptHtml = `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Batch Receipts - ${monthName}</title>
+    <title>Batch Receipts - ${monthName} (${modeText})</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { height: 100%; margin: 0; padding: 0; }
@@ -237,12 +291,17 @@ async function printAllReceipts() {
         const win = window.open();
         win.document.write(receiptHtml);
         win.document.close();
+
+        if (shouldMarkPaid && printMode === 'all') {
+            setTimeout(() => {
+                showSection('bills');
+            }, 2000);
+        }
     } catch (err) {
         console.error(err);
         alert('Print failed: ' + err.message);
     }
 }
-
 function renderDashboard(container) {
     const pending = allBills.filter(b => b.status === 'pending').length;
     const paid = allBills.filter(b => b.status === 'paid').length;
@@ -398,71 +457,88 @@ async function renderBills(container) {
 let batchPrintButton = '';
 if (currentUser.role === 'admin' || currentUser.role === 'special') {
     batchPrintButton = `
-        <div style="display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1rem;">
-            <div style="flex:1;">
-                <label style="font-size:0.8rem; font-weight:500;">Select month to print (paid bills)</label>
-                <input type="month" id="printMonth" value="${new Date().toISOString().slice(0,7)}" style="margin:0;">
+        <div style="display: flex; gap: 1.5rem; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap; background: #f9fafb; padding: 1rem 1.5rem; border-radius: 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="flex: 2; min-width: 160px;">
+                <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.5rem; color: #1f2937;">📅 Select month</label>
+                <input type="month" id="printMonth" value="${new Date().toISOString().slice(0,7)}" style="margin: 0; padding: 0.7rem 1rem; border-radius: 40px; border: 1px solid #cbd5e1; width: 100%; background: white; font-size: 0.9rem;">
             </div>
-            <button class="primary-btn" onclick="printAllReceipts()" style="background:#2c3e8f;"><i class="fas fa-print"></i> Print Receipts for Selected Month</button>
+            <div style="flex: 2; min-width: 200px;">
+                <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.5rem; color: #1f2937;">📄 Print mode</label>
+                <div style="display: flex; gap: 1.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+                        <input type="radio" name="printMode" value="paid" checked style="width: 18px; height: 18px; margin: 0; accent-color: #2c3e8f;">
+                        <span style="font-size: 0.9rem;">Only paid bills</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+                        <input type="radio" name="printMode" value="all" style="width: 18px; height: 18px; margin: 0; accent-color: #2c3e8f;">
+                        <span style="font-size: 0.9rem;">All bills</span>
+                    </label>
+                </div>
+            </div>
+            <div style="flex: 2; min-width: 200px;">
+                <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer;">
+                    <input type="checkbox" id="markPaidAfterPrint" style="width: 20px; height: 20px; margin: 0; accent-color: #2c3e8f;">
+                    <span style="font-size: 0.85rem; font-weight: 500;">✓ Mark pending bills as paid after printing</span>
+                </label>
+            </div>
+            <button class="primary-btn" onclick="printAllReceipts()" style="background: #2c3e8f; white-space: nowrap; padding: 0.7rem 1.8rem; border-radius: 40px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.05);"><i class="fas fa-print"></i> Print Receipts</button>
         </div>
     `;
 }
     // Build new UI
-    let clientsHtml = '';
-    for (const [clientId, clientData] of billsByClient) {
-        // Group bills by description (category) within each client
-        const groupedByDesc = new Map();
-        for (const bill of clientData.bills) {
-            const desc = bill.description;
-            if (!groupedByDesc.has(desc)) groupedByDesc.set(desc, []);
-            groupedByDesc.get(desc).push(bill);
-        }
-
-        clientsHtml += `
-            <div class="bill-client-card">
-                <div class="bill-client-header">
-                    <i class="fas fa-user-circle"></i> ${escapeHtml(clientData.clientName)}
-                    <span style="font-size:0.85rem; font-weight:normal; margin-left:0.5rem; color:#475569;">(Rm ${escapeHtml(clientData.clientRoom)}, ${escapeHtml(clientData.clientLevel)})</span>
-                </div>
-                <div class="card-body" style="padding:0;">
-        `;
-        for (const [category, bills] of groupedByDesc) {
-            const sortedBills = [...bills].sort((a,b) => new Date(b.dueDate) - new Date(a.dueDate));
-            clientsHtml += `
-                <div class="bill-category-group">
-                    <div class="bill-category-title">
-                        <i class="fas fa-tag"></i> ${escapeHtml(category)}
-                    </div>
-            `;
-            for (const bill of sortedBills) {
-                const dueDate = new Date(bill.dueDate);
-                const monthYear = dueDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-                const isPending = bill.status === 'pending';
-                clientsHtml += `
-                    <div class="bill-item-row">
-                        <div class="bill-item-details">
-                            <div class="bill-month">📅 ${monthYear}</div>
-                            <div class="bill-amount">₱${bill.amount.toLocaleString()}</div>
-                            <span class="badge ${bill.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${bill.status === 'pending' ? '⏳ Pending' : '✅ Paid'}</span>
-                        </div>
-                        <div class="bill-actions">
-                            ${bill.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special') ? 
-                                `<button class="mark-paid-btn" onclick="markPaid('${bill._id}')"><i class="fas fa-check-circle"></i> Mark paid</button>` : ''
-                            }
-                            ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
-                                `<button class="delete-btn" onclick="deleteBill('${bill._id}')"><i class="fas fa-trash-alt"></i> Delete</button>` : ''
-                            }
-                            ${bill.ratePerKwh !== undefined && bill.ratePerKwh !== null && bill.ratePerKwh > 0 ? 
-                                `<button class="compute-btn" onclick="showComputation('${bill._id}')"><i class="fas fa-calculator"></i> Computation</button>` : ''
-                            }
-                        </div>
-                    </div>
-                `;
-            }
-            clientsHtml += `</div>`;
-        }
-        clientsHtml += `</div></div>`;
+// inside renderBills, replace the clientsHtml generation loop with this:
+let clientsHtml = '';
+for (const [clientId, clientData] of billsByClient) {
+    const groupedByDesc = new Map();
+    for (const bill of clientData.bills) {
+        const desc = bill.description;
+        if (!groupedByDesc.has(desc)) groupedByDesc.set(desc, []);
+        groupedByDesc.get(desc).push(bill);
     }
+    clientsHtml += `
+        <div class="bill-client-card" style="margin-bottom: 1rem;">
+            <div class="bill-client-header" style="padding: 0.75rem 1rem; background: #fafbfc; border-bottom: 1px solid #f0f2f5; font-size: 1rem; font-weight: 600;">
+                <i class="fas fa-user-circle" style="margin-right: 0.5rem;"></i> ${escapeHtml(clientData.clientName)}
+                <span style="font-size:0.8rem; font-weight:normal; color:#6b7280;">(${escapeHtml(clientData.clientRoom)}, ${escapeHtml(clientData.clientLevel)})</span>
+            </div>
+            <div class="card-body" style="padding: 0;">
+    `;
+    for (const [category, bills] of groupedByDesc) {
+        const sortedBills = [...bills].sort((a,b) => new Date(b.dueDate) - new Date(a.dueDate));
+        clientsHtml += `
+            <div class="bill-category-group" style="border-bottom: 1px solid #f0f2f5;">
+                <div class="bill-category-title" style="font-size:0.85rem; padding: 0.5rem 1rem; background: #fefce8; border-bottom: 1px solid #fde68a;">
+                    <i class="fas fa-tag"></i> ${escapeHtml(category)}
+                </div>
+        `;
+        for (const bill of sortedBills) {
+            const dueDate = new Date(bill.dueDate);
+            const monthYear = dueDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+            clientsHtml += `
+                <div class="bill-item-row" style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 1rem; border-bottom: 1px solid #f8fafc;">
+                    <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                        <div class="bill-month" style="font-size:0.85rem; font-weight:600;">${monthYear}</div>
+                        <div class="bill-amount" style="font-size:1rem; font-weight:700;">₱${bill.amount.toLocaleString()}</div>
+                        <span class="badge ${bill.status === 'pending' ? 'badge-pending' : 'badge-paid'}" style="font-size:0.7rem;">${bill.status === 'pending' ? 'Pending' : 'Paid'}</span>
+                    </div>
+                    <div class="bill-actions" style="display: flex; gap: 0.5rem;">
+                        ${bill.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special') ? 
+                            `<button class="small" onclick="markPaid('${bill._id}')" title="Mark as paid"><i class="fas fa-check-circle"></i></button>` : ''
+                        }
+                        ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
+                            `<button class="small" onclick="deleteBill('${bill._id}')" title="Delete" style="color:#b91c1c;"><i class="fas fa-trash-alt"></i></button>` : ''
+                        }
+                        ${bill.ratePerKwh !== undefined && bill.ratePerKwh !== null ? 
+                            `<button class="small" onclick="showComputation('${bill._id}')" title="Computation"><i class="fas fa-calculator"></i></button>` : ''
+                        }
+                    </div>
+                </div>
+            `;
+        }
+        clientsHtml += `</div>`;
+    }
+    clientsHtml += `</div></div>`;
+}
 
     container.innerHTML = batchPrintButton + filterBarHtml + clientsHtml;
     attachFilterEvents();
@@ -483,235 +559,240 @@ if (currentUser.role === 'admin' || currentUser.role === 'special') {
     window.markPaid = async (billId) => { if (!confirm('Mark as paid?')) return; try { await fetch(`/api/bills/${billId}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } }); await loadData(); showSection('bills'); } catch(e) { alert(e.message); } };
 function renderAddBill(container) {
     const tenantOptions = allClients.filter(c => c.role === 'client').map(c => `<option value="${c._id}">${c.name} (Rm ${c.room})</option>`).join('');
-
-    container.innerHTML = `
-        <div class="card"><div class="card-header">➕ Add new bill (manual)</div><div class="card-body">
-            <form id="billFormSimple">
-                <select id="clientIdSimple" required>${tenantOptions}</select>
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <input type="text" id="descSimple" list="descSuggestions" placeholder="Description (e.g. Misc Fee)" required style="flex:2;">
-                    <datalist id="descSuggestions"></datalist>
-                    <input type="number" id="amountSimple" placeholder="Amount (₱)" step="0.01" required style="flex:1;">
-                    <button type="button" id="clearDefaultBtn" class="small" style="background:#fee2e2; color:#b91c1c; display: none;" title="Remove saved default">✖</button>
-                </div>
-                <input type="date" id="dueDateSimple" required>
-                <button class="primary-btn" type="submit" id="createBillBtn">Create bill</button>
-            </form>
-            <div id="defaultHint" style="font-size:0.75rem; color:#6b7280; margin-top:0.5rem;"></div>
-        </div></div>
-
-        <div class="card"><div class="card-header">📄 Bill Templates (global)</div><div class="card-body">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom:1rem;">
-                <input type="text" id="templateName" placeholder="Template name (e.g. Electricity)" required>
-                <input type="text" id="templateDesc" placeholder="Description (e.g. Electric bill)" required>
-                <input type="number" id="templateRate" placeholder="Rate per unit (₱)" step="0.01" required>
-                <input type="number" id="templateMin" placeholder="Min amount (₱)" step="0.01">
-                <input type="number" id="templateDueDay" placeholder="Due day (1-31)" min="1" max="31" required>
-                <button id="saveTemplateBtn" class="primary-btn">Save Template</button>
-            </div>
-            <div id="templatesList" style="margin-top:0.5rem;"></div>
-        </div></div>
-
-        <div class="card"><div class="card-header">⚡ Generate Bill from Meter Reading</div><div class="card-body">
-            <form id="meterBillForm">
-                <select id="meterTenantSelect" required>${tenantOptions}</select>
-                <select id="meterTemplateSelect" required><option value="">-- Select template --</option></select>
-                <input type="number" id="meterReading" placeholder="Current Reading (units)" step="0.01" required>
-                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-                    <input type="number" id="meterRate" placeholder="Rate per unit (₱)" step="0.01" required style="flex:1;">
-                    <input type="number" id="meterMin" placeholder="Minimum amount (₱)" step="0.01" style="flex:1;">
-                    <input type="number" id="meterDueDay" placeholder="Due day (1-31)" min="1" max="31" required style="flex:1;">
-                </div>
-                <button type="submit" class="primary-btn">Generate Bill from Reading</button>
-            </form>
-            <div id="prevReadingDisplay" style="margin-top:0.5rem; font-size:0.8rem; color:#6b7280;"></div>
-        </div></div>
+    
+    // Tab bar
+    const tabBarHtml = `
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid #eef2f6; padding-bottom: 0.5rem;">
+            <button class="tab-btn active" data-tab="manual">📝 Manual Bill</button>
+            ${(currentUser.role === 'admin' || currentUser.role === 'special') ? `<button class="tab-btn" data-tab="recurring">🔄 Recurring Bill</button>` : ''}
+            <button class="tab-btn" data-tab="meter">⚡ Meter Reading</button>
+        </div>
     `;
-
-    // ========== 1. MANUAL BILL WITH DATALIST & INSTANT DEFAULT ==========
+    const panelsHtml = `
+        <div id="tab-manual" class="tab-panel active"></div>
+        <div id="tab-recurring" class="tab-panel" style="display:none;"></div>
+        <div id="tab-meter" class="tab-panel" style="display:none;"></div>
+    `;
+    container.innerHTML = tabBarHtml + panelsHtml;
+    
+    // ========== 1. MANUAL BILL PANEL ==========
+    const manualPanel = document.getElementById('tab-manual');
+    manualPanel.innerHTML = `
+        <div class="card">
+            <div class="card-header">➕ Add new bill (manual)</div>
+            <div class="card-body">
+                <form id="billFormSimple">
+                    <select id="clientIdSimple" required>${tenantOptions}</select>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <input type="text" id="descSimple" list="descSuggestions" placeholder="Description (e.g. Misc Fee)" required style="flex:2;">
+                        <datalist id="descSuggestions"></datalist>
+                        <input type="number" id="amountSimple" placeholder="Amount (₱)" step="0.01" required style="flex:1;">
+                        <button type="button" id="clearDefaultBtn" class="small" style="background:#fee2e2; color:#b91c1c; display: none;" title="Remove saved default">✖</button>
+                    </div>
+                    <input type="date" id="dueDateSimple" required>
+                    <button class="primary-btn" type="submit" id="createBillBtn">Create bill</button>
+                </form>
+                <div id="defaultHint" style="font-size:0.75rem; color:#6b7280; margin-top:0.5rem;"></div>
+            </div>
+        </div>
+    `;
+    
+    // Manual bill logic
     const clientSelect = document.getElementById('clientIdSimple');
     const descInput = document.getElementById('descSimple');
     const amountInput = document.getElementById('amountSimple');
     const clearDefaultBtn = document.getElementById('clearDefaultBtn');
     const defaultHint = document.getElementById('defaultHint');
     const datalist = document.getElementById('descSuggestions');
-
-    // Build datalist options from existing bills for this client
+    
     function updateDescSuggestions(clientId) {
         if (!datalist) return;
-        if (!clientId) {
-            datalist.innerHTML = '';
-            return;
-        }
-        // Get unique descriptions from allBills for this client
+        if (!clientId) { datalist.innerHTML = ''; return; }
         const clientBills = allBills.filter(b => b.clientId?._id === clientId || b.clientId === clientId);
         const descriptions = [...new Set(clientBills.map(b => b.description))];
         datalist.innerHTML = descriptions.map(d => `<option value="${escapeHtml(d)}">`).join('');
     }
-
-    // Get last used amount (local first, then API default)
     async function fetchDefaultAmount() {
-        const clientId = clientSelect.value;
-        const description = descInput.value.trim();
-        if (!clientId || !description) {
-            clearDefaultBtn.style.display = 'none';
-            defaultHint.innerHTML = '';
-            return;
+        const clientId = clientSelect.value, description = descInput.value.trim();
+        if (!clientId || !description) { clearDefaultBtn.style.display = 'none'; defaultHint.innerHTML = ''; return; }
+        const lastBill = allBills.filter(b => (b.clientId?._id === clientId || b.clientId === clientId) && b.description === description).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+        if (lastBill) { amountInput.value = lastBill.amount; clearDefaultBtn.style.display = 'inline-block'; defaultHint.innerHTML = `💡 Last used amount for "${description}" was ₱${lastBill.amount}. You can change it.`; return; }
+        try { const data = await apiGet(`/api/bill-defaults/${clientId}/${encodeURIComponent(description)}`); if (data.defaultAmount !== null && data.defaultAmount !== undefined) { amountInput.value = data.defaultAmount; clearDefaultBtn.style.display = 'inline-block'; defaultHint.innerHTML = `💡 Default amount for "${description}" is ₱${data.defaultAmount}. You can change it.`; } else { clearDefaultBtn.style.display = 'none'; defaultHint.innerHTML = ''; } } catch(e) { console.warn(e); }
+    }
+    clientSelect.addEventListener('change', () => { updateDescSuggestions(clientSelect.value); fetchDefaultAmount(); });
+    descInput.addEventListener('input', () => { if (descInput.value.trim()) fetchDefaultAmount(); });
+    descInput.addEventListener('change', fetchDefaultAmount);
+    clearDefaultBtn.addEventListener('click', async () => { const clientId = clientSelect.value, description = descInput.value.trim(); if (!clientId || !description) return; if (!confirm(`Remove saved default for "${description}"?`)) return; try { await apiDelete(`/api/bill-defaults/${clientId}/${encodeURIComponent(description)}`); amountInput.value = ''; clearDefaultBtn.style.display = 'none'; defaultHint.innerHTML = 'Default removed.'; setTimeout(() => defaultHint.innerHTML = '', 2000); } catch(e) { alert(e.message); } });
+    document.getElementById('billFormSimple')?.addEventListener('submit', async (e) => { e.preventDefault(); const btn = document.getElementById('createBillBtn'); const original = btn.innerText; btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>'; btn.disabled = true; const clientId = clientSelect.value, description = descInput.value.trim(), amount = parseFloat(amountInput.value), dueDate = document.getElementById('dueDateSimple').value; if (!clientId || !description || isNaN(amount) || !dueDate) { alert('Fill all fields'); btn.innerHTML = original; btn.disabled = false; return; } try { await apiPost('/api/bills', { clientId, description, amount, dueDate }); await apiPost('/api/bill-defaults', { clientId, description, defaultAmount: amount }); await loadData(); showSection('bills'); } catch(err) { alert(err.message); } finally { btn.innerHTML = original; btn.disabled = false; } });
+    if (clientSelect.value) { updateDescSuggestions(clientSelect.value); fetchDefaultAmount(); }
+    
+    // ========== 2. RECURRING SCHEDULE PANEL (admin only) ==========
+    if (currentUser.role === 'admin' || currentUser.role === 'special') {
+        const recurringPanel = document.getElementById('tab-recurring');
+        recurringPanel.innerHTML = `
+            <div class="card">
+                <div class="card-header">🔄 Monthly Recurring Bills (auto‑create on 1st of month)</div>
+                <div class="card-body">
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size:0.8rem;">Select tenant</label>
+                        <select id="recurringFilterClient" class="recurring-client-select">${tenantOptions}</select>
+                    </div>
+                    <form id="recurringForm">
+                        <input type="hidden" id="recurringClientId">
+                        <input type="text" id="recurringDesc" placeholder="Description (e.g. Rent)" required>
+                        <input type="number" id="recurringAmount" placeholder="Amount (₱)" step="0.01" required>
+                        <input type="number" id="recurringDueDay" placeholder="Due day (1-31)" min="1" max="31" required>
+                        <button type="submit" class="primary-btn">Save Recurring Bill for this tenant</button>
+                    </form>
+                    <hr style="margin: 1rem 0;">
+                    <div id="recurringList">Loading...</div>
+                </div>
+            </div>
+        `;
+        
+        const filterSelect = document.getElementById('recurringFilterClient');
+        const recurringClientIdHidden = document.getElementById('recurringClientId');
+        const recurringListDiv = document.getElementById('recurringList');
+        let allSchedules = [];
+        
+        async function loadSchedules() {
+            try {
+                allSchedules = await apiGet('/api/recurring-schedules');
+                filterAndDisplaySchedules();
+            } catch(e) { console.warn(e); allSchedules = []; recurringListDiv.innerHTML = '<div class="empty-state">Failed to load schedules.</div>'; }
         }
-        // 1. Try to find last used amount from local allBills (most recent bill)
-        const lastBill = allBills
-            .filter(b => (b.clientId?._id === clientId || b.clientId === clientId) && b.description === description)
-            .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-        if (lastBill) {
-            amountInput.value = lastBill.amount;
-            clearDefaultBtn.style.display = 'inline-block';
-            defaultHint.innerHTML = `💡 Last used amount for "${description}" was ₱${lastBill.amount}. You can change it.`;
-            return;
-        }
-        // 2. Fallback to server (if a default was saved manually)
-        try {
-            const data = await apiGet(`/api/bill-defaults/${clientId}/${encodeURIComponent(description)}`);
-            if (data.defaultAmount !== null && data.defaultAmount !== undefined) {
-                amountInput.value = data.defaultAmount;
-                clearDefaultBtn.style.display = 'inline-block';
-                defaultHint.innerHTML = `💡 Default amount for "${description}" is ₱${data.defaultAmount}. You can change it.`;
-            } else {
-                clearDefaultBtn.style.display = 'none';
-                defaultHint.innerHTML = '';
+        function filterAndDisplaySchedules() {
+            const selectedClientId = filterSelect.value;
+            if (!selectedClientId) {
+                recurringListDiv.innerHTML = '<div class="empty-state">Select a tenant to view their recurring bills.</div>';
+                return;
             }
-        } catch(e) { console.warn(e); }
-    }
-
-    // Events for manual bill form
-    clientSelect.addEventListener('change', () => {
-        updateDescSuggestions(clientSelect.value);
-        fetchDefaultAmount();
-    });
-    descInput.addEventListener('input', () => {
-        if (!descInput.value.trim()) return;
-        fetchDefaultAmount();
-    });
-    descInput.addEventListener('change', fetchDefaultAmount); // when selecting from datalist
-
-    // Remove default button
-    clearDefaultBtn.addEventListener('click', async () => {
-        const clientId = clientSelect.value;
-        const description = descInput.value.trim();
-        if (!clientId || !description) return;
-        if (!confirm(`Remove the saved default amount for "${description}"?`)) return;
-        try {
-            await apiDelete(`/api/bill-defaults/${clientId}/${encodeURIComponent(description)}`);
-            amountInput.value = '';
-            clearDefaultBtn.style.display = 'none';
-            defaultHint.innerHTML = 'Default removed.';
-            setTimeout(() => { defaultHint.innerHTML = ''; }, 2000);
-        } catch(e) { alert(e.message); }
-    });
-
-    // Submit manual bill (also saves the amount as default)
-    document.getElementById('billFormSimple')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = document.getElementById('createBillBtn');
-        const original = btn.innerText;
-        btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
-        btn.disabled = true;
-
-        const clientId = clientSelect.value;
-        const description = descInput.value.trim();
-        const amount = parseFloat(amountInput.value);
-        const dueDate = document.getElementById('dueDateSimple').value;
-
-        if (!clientId || !description || isNaN(amount) || !dueDate) {
-            alert('Please fill all fields correctly');
-            btn.innerHTML = original; btn.disabled = false;
-            return;
+            const clientSchedules = allSchedules.filter(s => s.clientId?._id === selectedClientId || s.clientId === selectedClientId);
+            if (clientSchedules.length === 0) {
+                recurringListDiv.innerHTML = '<div class="empty-state">No recurring bills for this tenant. Create one using the form above.</div>';
+                return;
+            }
+            recurringListDiv.innerHTML = clientSchedules.map(s => `
+                <div data-id="${s._id}" style="border-bottom:1px solid #eee; padding:0.4rem 0; display:flex; justify-content:space-between;">
+                    <div><strong>${escapeHtml(s.description)}</strong><br>₱${s.amount} (due day ${s.dueDay})</div>
+                    <button class="small delete-recurring" data-id="${s._id}" style="background:#fee2e2; color:#b91c1c;">Delete</button>
+                </div>
+            `).join('');
+            document.querySelectorAll('.delete-recurring').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.getAttribute('data-id');
+                    if (!confirm('Delete this recurring schedule?')) return;
+                    try {
+                        await apiDelete(`/api/recurring-schedules/${id}`);
+                        loadSchedules();
+                    } catch(err) { alert(err.message); }
+                });
+            });
         }
-
-        try {
-            // Create the bill
-            await apiPost('/api/bills', { clientId, description, amount, dueDate });
-            // Save this amount as the default for future (overwrites previous)
-            await apiPost('/api/bill-defaults', { clientId, description, defaultAmount: amount });
-            await loadData();
-            showSection('bills');
-        } catch(err) {
-            console.error(err);
-            alert('Failed to create bill: ' + err.message);
-        } finally {
-            btn.innerHTML = original;
-            btn.disabled = false;
+        filterSelect.addEventListener('change', () => {
+            recurringClientIdHidden.value = filterSelect.value;
+            filterAndDisplaySchedules();
+        });
+        document.getElementById('recurringForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const clientId = filterSelect.value;
+            if (!clientId) { alert('Please select a tenant first.'); return; }
+            const payload = {
+                clientId: clientId,
+                description: document.getElementById('recurringDesc').value.trim(),
+                amount: parseFloat(document.getElementById('recurringAmount').value),
+                dueDay: parseInt(document.getElementById('recurringDueDay').value)
+            };
+            if (!payload.description || isNaN(payload.amount) || !payload.dueDay) {
+                alert('Please fill all fields correctly.');
+                return;
+            }
+            try {
+                await apiPost('/api/recurring-schedules', payload);
+                alert('Recurring schedule saved');
+                loadSchedules();
+                document.getElementById('recurringDesc').value = '';
+                document.getElementById('recurringAmount').value = '';
+                document.getElementById('recurringDueDay').value = '';
+            } catch(err) { alert(err.message); }
+        });
+        if (filterSelect.value) {
+            recurringClientIdHidden.value = filterSelect.value;
+            loadSchedules();
+        } else {
+            recurringListDiv.innerHTML = '<div class="empty-state">Select a tenant to view their recurring bills.</div>';
         }
-    });
-
-    // Initialize datalist & default if client already selected
-    if (clientSelect.value) {
-        updateDescSuggestions(clientSelect.value);
-        fetchDefaultAmount();
+    } else {
+        const recurringTabBtn = document.querySelector('.tab-btn[data-tab="recurring"]');
+        if (recurringTabBtn) recurringTabBtn.style.display = 'none';
     }
-
-    // ========== 2. GLOBAL TEMPLATES ==========
+    
+    // ========== 3. METER READING PANEL (with editable previous reading, synced with template) ==========
+    const meterPanel = document.getElementById('tab-meter');
+    meterPanel.innerHTML = `
+        <div class="card">
+            <div class="card-header">⚡ Generate Bill from Meter Reading</div>
+            <div class="card-body">
+                <form id="meterBillForm">
+                    <select id="meterTenantSelect" required>${tenantOptions}</select>
+                    <select id="meterTemplateSelect" required><option value="">-- Select template --</option></select>
+                    <input type="number" id="meterReading" placeholder="Current Reading (units)" step="0.01" required>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <input type="number" id="meterRate" placeholder="Rate per unit (₱)" step="0.01" required style="flex:1;">
+                        <input type="number" id="meterMin" placeholder="Minimum amount (₱)" step="0.01" style="flex:1;">
+                        <input type="number" id="meterDueDay" placeholder="Due day (1-31)" min="1" max="31" required style="flex:1;">
+                    </div>
+                    <button type="submit" class="primary-btn">Generate Bill from Reading</button>
+                </form>
+                <div id="prevReadingDisplay" style="margin-top:0.5rem; font-size:0.8rem; color:#6b7280;"></div>
+            </div>
+        </div>
+        <div class="card" style="margin-top:1rem;">
+            <div class="card-header">📊 Previous Reading (editable)</div>
+            <div class="card-body">
+                <div style="display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap;">
+                    <div style="flex:2;">
+                        <label style="font-size:0.8rem;">Description</label>
+                        <input type="text" id="prevReadingDesc" placeholder="e.g. Meralco" list="prevDescList" style="margin-bottom:0;">
+                        <datalist id="prevDescList"></datalist>
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:0.8rem;">Previous reading (kWh)</label>
+                        <input type="number" id="prevReadingValue" step="0.01" placeholder="0" style="margin-bottom:0;">
+                    </div>
+                    <div>
+                        <button id="updatePrevReadingBtn" class="primary-btn" style="padding:0.5rem 1rem;">Update</button>
+                    </div>
+                </div>
+                <div id="currentPrevReadingInfo" style="margin-top:0.75rem; font-size:1rem; font-weight:500; padding:0.5rem; background:#f0f4fe; border-radius:12px;"></div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">📄 Bill Templates (global)</div>
+            <div class="card-body">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom:1rem;">
+                    <input type="text" id="templateName" placeholder="Template name" required>
+                    <input type="text" id="templateDesc" placeholder="Description" required>
+                    <input type="number" id="templateRate" placeholder="Rate per unit (₱)" step="0.01" required>
+                    <input type="number" id="templateMin" placeholder="Min amount (₱)" step="0.01">
+                    <input type="number" id="templateDueDay" placeholder="Due day (1-31)" min="1" max="31" required>
+                    <button id="saveTemplateBtn" class="primary-btn">Save Template</button>
+                </div>
+                <div id="templatesList"></div>
+            </div>
+        </div>
+    `;
+    
+    // Global templates logic
     let globalTemplates = [];
     const templatesListDiv = document.getElementById('templatesList');
-
-    async function loadGlobalTemplates() {
-        try {
-            globalTemplates = await apiGet('/api/bill-templates');
-            renderTemplatesList();
-            updateTemplateDropdown();
-        } catch(e) { console.warn(e); }
-    }
-    function renderTemplatesList() {
-        templatesListDiv.innerHTML = globalTemplates.map(t => `
-            <div data-id="${t._id}" style="border-bottom:1px solid #eee; padding:0.4rem 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-                <div><strong>${escapeHtml(t.name)}</strong> – ${escapeHtml(t.description)}<br>
-                Rate: ₱${t.ratePerUnit}/unit, Min: ₱${t.minimumAmount || 'none'}, Due day: ${t.dueDay}</div>
-                <button class="small delete-template" data-id="${t._id}" style="background:#fee2e2; color:#b91c1c;">Delete</button>
-            </div>
-        `).join('');
-        document.querySelectorAll('.delete-template').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const id = btn.getAttribute('data-id');
-                if (!confirm('Delete this template?')) return;
-                try {
-                    await apiDelete(`/api/bill-templates/${id}`);
-                    loadGlobalTemplates();
-                } catch(err) { alert(err.message); }
-            });
-        });
-    }
-    function updateTemplateDropdown() {
-        const meterTemplateSelect = document.getElementById('meterTemplateSelect');
-        meterTemplateSelect.innerHTML = '<option value="">-- Select template --</option>' +
-            globalTemplates.map(t => `<option value="${t._id}" data-rate="${t.ratePerUnit}" data-min="${t.minimumAmount || ''}" data-due="${t.dueDay}">${t.name} (${t.description})</option>`).join('');
-    }
-
-    document.getElementById('saveTemplateBtn').addEventListener('click', async () => {
-        const payload = {
-            name: document.getElementById('templateName').value.trim(),
-            description: document.getElementById('templateDesc').value.trim(),
-            ratePerUnit: parseFloat(document.getElementById('templateRate').value),
-            minimumAmount: parseFloat(document.getElementById('templateMin').value) || null,
-            dueDay: parseInt(document.getElementById('templateDueDay').value)
-        };
-        if (!payload.name || !payload.description || isNaN(payload.ratePerUnit) || !payload.dueDay) {
-            alert('Fill all required fields');
-            return;
-        }
-        try {
-            await apiPost('/api/bill-templates', payload);
-            alert('Template saved');
-            document.getElementById('templateName').value = '';
-            document.getElementById('templateDesc').value = '';
-            document.getElementById('templateRate').value = '';
-            document.getElementById('templateMin').value = '';
-            document.getElementById('templateDueDay').value = '';
-            loadGlobalTemplates();
-        } catch(err) { alert(err.message); }
-    });
-
+    async function loadGlobalTemplates() { try { globalTemplates = await apiGet('/api/bill-templates'); renderTemplatesList(); updateTemplateDropdown(); } catch(e) { console.warn(e); } }
+    function renderTemplatesList() { templatesListDiv.innerHTML = globalTemplates.map(t => `<div data-id="${t._id}" style="border-bottom:1px solid #eee; padding:0.4rem 0; display:flex; justify-content:space-between;"><div><strong>${escapeHtml(t.name)}</strong> – ${escapeHtml(t.description)}<br>Rate: ₱${t.ratePerUnit}/unit, Min: ₱${t.minimumAmount || 'none'}, Due day: ${t.dueDay}</div><button class="small delete-template" data-id="${t._id}" style="background:#fee2e2; color:#b91c1c;">Delete</button></div>`).join(''); document.querySelectorAll('.delete-template').forEach(btn => btn.addEventListener('click', async () => { if (confirm('Delete template?')) { await apiDelete(`/api/bill-templates/${btn.getAttribute('data-id')}`); loadGlobalTemplates(); } })); }
+    function updateTemplateDropdown() { const meterTemplateSelect = document.getElementById('meterTemplateSelect'); meterTemplateSelect.innerHTML = '<option value="">-- Select template --</option>' + globalTemplates.map(t => `<option value="${t._id}" data-rate="${t.ratePerUnit}" data-min="${t.minimumAmount || ''}" data-due="${t.dueDay}">${t.name} (${t.description})</option>`).join(''); }
+    document.getElementById('saveTemplateBtn')?.addEventListener('click', async () => { const payload = { name: document.getElementById('templateName').value.trim(), description: document.getElementById('templateDesc').value.trim(), ratePerUnit: parseFloat(document.getElementById('templateRate').value), minimumAmount: parseFloat(document.getElementById('templateMin').value) || null, dueDay: parseInt(document.getElementById('templateDueDay').value) }; if (!payload.name || !payload.description || isNaN(payload.ratePerUnit) || !payload.dueDay) { alert('Fill required'); return; } try { await apiPost('/api/bill-templates', payload); alert('Template saved'); document.getElementById('templateName').value = ''; document.getElementById('templateDesc').value = ''; document.getElementById('templateRate').value = ''; document.getElementById('templateMin').value = ''; document.getElementById('templateDueDay').value = ''; loadGlobalTemplates(); } catch(err) { alert(err.message); } });
     loadGlobalTemplates();
-
-    // ========== 3. METER READING BILL GENERATION ==========
+    
+    // Meter reading main form
     const meterTenant = document.getElementById('meterTenantSelect');
     const meterTemplateSelect = document.getElementById('meterTemplateSelect');
     const meterRate = document.getElementById('meterRate');
@@ -719,13 +800,23 @@ function renderAddBill(container) {
     const meterDueDay = document.getElementById('meterDueDay');
     const meterReadingInput = document.getElementById('meterReading');
     const prevDisplay = document.getElementById('prevReadingDisplay');
-
+    
     function onTemplateChange() {
         const selected = meterTemplateSelect.options[meterTemplateSelect.selectedIndex];
         if (selected && selected.value) {
-            meterRate.value = selected.getAttribute('data-rate') || '';
-            meterMin.value = selected.getAttribute('data-min') || '';
-            meterDueDay.value = selected.getAttribute('data-due') || '';
+            const rate = selected.getAttribute('data-rate') || '';
+            const min = selected.getAttribute('data-min') || '';
+            const due = selected.getAttribute('data-due') || '';
+            meterRate.value = rate;
+            meterMin.value = min;
+            meterDueDay.value = due;
+            
+            // Sync the editable previous reading description
+            const templateDesc = globalTemplates.find(t => t._id === selected.value)?.description || '';
+            if (templateDesc) {
+                document.getElementById('prevReadingDesc').value = templateDesc;
+                fetchCurrentPreviousReading();
+            }
         } else {
             meterRate.value = '';
             meterMin.value = '';
@@ -734,32 +825,27 @@ function renderAddBill(container) {
         fetchLastReading();
     }
     meterTemplateSelect.addEventListener('change', onTemplateChange);
-
+    
     async function fetchLastReading() {
-        const clientId = meterTenant.value;
-        const templateId = meterTemplateSelect.value;
+        const clientId = meterTenant.value, templateId = meterTemplateSelect.value;
         if (!clientId || !templateId) return;
         const template = globalTemplates.find(t => t._id === templateId);
         if (!template) return;
-        const description = template.description;
         try {
-            const res = await apiGet(`/api/meters/last-reading?clientId=${clientId}&description=${encodeURIComponent(description)}`);
+            const res = await apiGet(`/api/meters/last-reading?clientId=${clientId}&description=${encodeURIComponent(template.description)}`);
             prevDisplay.innerHTML = `Previous reading: ${res.reading} units`;
         } catch(e) { prevDisplay.innerHTML = ''; }
     }
-    meterTenant.addEventListener('change', () => {
-        if (meterTemplateSelect.value) fetchLastReading();
-    });
-
+    meterTenant.addEventListener('change', () => { if (meterTemplateSelect.value) fetchLastReading(); });
+    
     document.getElementById('meterBillForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
         const original = btn.innerText;
-        btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
-        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>'; btn.disabled = true;
         try {
             const selectedTemplate = globalTemplates.find(t => t._id === meterTemplateSelect.value);
-            if (!selectedTemplate) throw new Error('Please select a template');
+            if (!selectedTemplate) throw new Error('Select template');
             const payload = {
                 clientId: meterTenant.value,
                 description: selectedTemplate.description,
@@ -774,6 +860,70 @@ function renderAddBill(container) {
             showSection('bills');
         } catch(err) { alert(err.message); }
         finally { btn.innerHTML = original; btn.disabled = false; }
+    });
+    
+    // Previous reading editor
+    const prevDescInput = document.getElementById('prevReadingDesc');
+    const prevValueInput = document.getElementById('prevReadingValue');
+    const updatePrevBtn = document.getElementById('updatePrevReadingBtn');
+    const currentPrevInfo = document.getElementById('currentPrevReadingInfo');
+    const prevDescList = document.getElementById('prevDescList');
+    
+    async function loadPrevDescOptions() {
+        try {
+            const descriptions = [...new Set(globalTemplates.map(t => t.description))];
+            prevDescList.innerHTML = descriptions.map(d => `<option value="${escapeHtml(d)}">`).join('');
+            if (descriptions.length === 0) { prevDescList.innerHTML = '<option value="Electricity">Electricity</option>'; }
+        } catch(e) { console.warn(e); }
+    }
+    loadPrevDescOptions();
+    
+    async function fetchCurrentPreviousReading() {
+        const clientId = meterTenant.value;
+        const description = prevDescInput.value.trim();
+        if (!clientId || !description) { currentPrevInfo.innerHTML = ''; return; }
+        try {
+            const res = await apiGet(`/api/meters/last-reading?clientId=${clientId}&description=${encodeURIComponent(description)}`);
+            const reading = res.reading;
+            currentPrevInfo.innerHTML = `📌 Current previous reading for <strong>${escapeHtml(description)}</strong>: <span style="font-size:1.3rem; font-weight:700;">${reading} kWh</span>`;
+            prevValueInput.value = reading;
+        } catch(e) { currentPrevInfo.innerHTML = '❌ Failed to load current reading.'; }
+    }
+    prevDescInput.addEventListener('change', fetchCurrentPreviousReading);
+    meterTenant.addEventListener('change', () => { if (prevDescInput.value.trim()) fetchCurrentPreviousReading(); });
+    
+    updatePrevBtn.addEventListener('click', async () => {
+        const clientId = meterTenant.value;
+        const description = prevDescInput.value.trim();
+        const newReading = parseFloat(prevValueInput.value);
+        if (!clientId || !description || isNaN(newReading)) {
+            alert('Select tenant, enter description, and a valid reading number.');
+            return;
+        }
+        if (!confirm(`Set previous reading for "${description}" to ${newReading} kWh? This will affect future consumption calculations.`)) return;
+        try {
+            await apiPost('/api/meters/set-previous-reading', { clientId, description, reading: newReading });
+            alert('✅ Previous reading updated successfully.');
+            fetchCurrentPreviousReading();
+            if (meterTemplateSelect.value) {
+                const selectedTemplate = globalTemplates.find(t => t._id === meterTemplateSelect.value);
+                if (selectedTemplate && selectedTemplate.description === description) fetchLastReading();
+            }
+        } catch(err) { alert(err.message); }
+    });
+    
+    // Tab switching
+    const tabs = document.querySelectorAll('.tab-btn');
+    const panels = document.querySelectorAll('.tab-panel');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const target = tab.getAttribute('data-tab');
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            panels.forEach(panel => panel.style.display = 'none');
+            const activePanel = document.getElementById(`tab-${target}`);
+            if (activePanel) activePanel.style.display = 'block';
+        });
     });
 }
 
@@ -1171,13 +1321,7 @@ async function showSection(section) {
         const header = document.querySelector('.header');
         const headerHeight = header ? header.offsetHeight : 0;
         // Scroll to top of main content, accounting for header height
-        window.scrollTo({ top: headerHeight, behavior: 'smooth' });
-        // Alternative: scroll to the main container
-        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        // Then adjust for header if needed
-        if (headerHeight > 0) {
-            window.scrollBy({ top: -headerHeight, behavior: 'smooth' });
-        }
+
     }
 
     document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
