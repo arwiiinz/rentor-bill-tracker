@@ -279,6 +279,12 @@ button.small {
     background: #f3f4f6;
     cursor: pointer;
 }
+
+/* Align checkboxes and radio buttons with text */
+input[type="checkbox"], input[type="radio"] {
+    vertical-align: middle;
+    margin: 0 2px 0 0;
+}
 button.primary-btn {
     background: #2c3e8f;
     color: white;
@@ -877,4 +883,21 @@ input, select, textarea {
     .message-bubble {
         font-size: 1.05rem;
     }
+}
+
+
+
+/* here is the modernized under */
+
+
+/* Programmer watermark */
+.watermark {
+    text-align: center;
+    font-size: 0.7rem;
+    color: #cbd5e1;
+    padding: 0.5rem;
+    margin-top: 1rem;
+    border-top: 1px solid #eef2f6;
+    background: transparent;
+    pointer-events: none; /* prevents interference with clicks */
 }
