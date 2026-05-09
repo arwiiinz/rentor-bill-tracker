@@ -24,6 +24,7 @@ const ElectricityConfig = require('./models/ElectricityConfig');
 const PushSubscription = require('./models/PushSubscription');
 const MeterReading = require('./models/MeterReading');
 const BillTemplate = require('./models/BillTemplate');
+const BillDefault = require('./models/BillDefault');
 
 // ==================== Password Helper ====================
 const PASSWORD_SECRET = process.env.PASSWORD_SECRET || 'fallback-secret-change-this';
@@ -66,26 +67,21 @@ io.on('connection', (socket) => {
     console.log(`Socket connected: ${socket.user.username} (${socket.user._id})`);
     socket.join(`user_${socket.user._id}`);
 
-    socket.on('private message', async ({ toUserId, message, tempId }) => {
-        try {
-            const newMsg = new Message({
-                fromUser: socket.user._id,
-                toUser: toUserId,
-                subject: 'Chat',
-                message
-            });
-            await newMsg.save();
-            const populated = await newMsg.populate('fromUser', 'name username');
-            const baseResponse = populated.toObject();
+  socket.on('private message', async ({ toUserId, message, tempId }) => {
+    try {
+        const newMsg = new Message({ fromUser: socket.user._id, toUser: toUserId, subject: 'Chat', message });
+        await newMsg.save();
+        const populated = await newMsg.populate('fromUser', 'name username');
+        const baseResponse = populated.toObject();
 
-            // Sender gets tempId (replace optimistic message)
-            socket.emit('new message', { ...baseResponse, tempId });
-            // Recipient gets clean copy
-            socket.to(`user_${toUserId}`).emit('new message', baseResponse);
-        } catch (err) {
-            console.error('Private message error:', err);
-        }
-    });
+        // ✅ Sender gets the tempId to replace optimistic message
+        socket.emit('new message', { ...baseResponse, tempId });
+        // ✅ Recipient gets clean copy (no tempId)
+        socket.to(`user_${toUserId}`).emit('new message', baseResponse);
+    } catch (err) {
+        console.error('Private message error:', err);
+    }
+});
 
     socket.on('typing', ({ toUserId, isTyping }) => {
         socket.to(`user_${toUserId}`).emit('user typing', { fromUserId: socket.user._id, isTyping });
@@ -130,6 +126,46 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/heartbeat', authMiddleware, async (req, res) => {
     await User.findByIdAndUpdate(req.user.id, { lastSeen: new Date() });
     res.json({ ok: true });
+});
+
+// Get default amount for client+description
+app.get('/api/bill-defaults/:clientId/:description', authMiddleware, async (req, res) => {
+    try {
+        const { clientId, description } = req.params;
+        const def = await BillDefault.findOne({ clientId, description });
+        res.json({ defaultAmount: def ? def.defaultAmount : null });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Save or update default amount
+app.post('/api/bill-defaults', authMiddleware, async (req, res) => {
+    try {
+        const { clientId, description, defaultAmount } = req.body;
+        if (!clientId || !description || defaultAmount === undefined) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        const updated = await BillDefault.findOneAndUpdate(
+            { clientId, description },
+            { defaultAmount, updatedAt: new Date() },
+            { upsert: true, new: true }
+        );
+        res.json(updated);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Delete default for client+description
+app.delete('/api/bill-defaults/:clientId/:description', authMiddleware, async (req, res) => {
+    try {
+        const { clientId, description } = req.params;
+        await BillDefault.findOneAndDelete({ clientId, description });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // Test endpoint (to verify routes are working)
