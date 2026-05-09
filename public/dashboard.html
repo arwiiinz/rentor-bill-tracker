@@ -86,11 +86,17 @@
         if (!str) return '';
         return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
     }
-
-    async function printAllReceipts() {
+async function printAllReceipts() {
     try {
+        const paidBills = allBills.filter(bill => bill.status === 'paid');
+        if (!paidBills.length) {
+            alert('No paid bills to print.');
+            return;
+        }
+
+        // Group by client
         const billsByClient = new Map();
-        for (const bill of allBills) {
+        for (const bill of paidBills) {
             const client = bill.clientId;
             if (!client) continue;
             if (!billsByClient.has(client._id)) {
@@ -98,40 +104,80 @@
                     name: client.name,
                     room: client.room,
                     level: client.level,
-                    pendingTotal: 0,
-                    paidTotal: 0,
-                    billCount: 0
+                    bills: [],
+                    total: 0
                 });
             }
-            const data = billsByClient.get(client._id);
-            if (bill.status === 'pending') data.pendingTotal += bill.amount;
-            else data.paidTotal += bill.amount;
-            data.billCount++;
+            const group = billsByClient.get(client._id);
+            group.bills.push(bill);
+            group.total += bill.amount;
         }
 
-        const clients = Array.from(billsByClient.values());
-        if (clients.length === 0) {
-            alert('No tenants with bills found.');
+        // Build receipt cards
+        let allCards = [];
+        for (const [clientId, clientData] of billsByClient) {
+            clientData.bills.sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
+            let billsListHtml = '';
+            for (const bill of clientData.bills) {
+                const dueDate = new Date(bill.dueDate).toLocaleDateString();
+                const paidDate = bill.paidDate ? new Date(bill.paidDate).toLocaleDateString() : 'N/A';
+                let computationHtml = '';
+                if (bill.ratePerKwh !== undefined && bill.ratePerKwh !== null) {
+                    const consumption = bill.consumptionKwh ?? 'N/A';
+                    const previous = bill.previousReading ?? 'N/A';
+                    const current = bill.currentReading ?? 'N/A';
+                    const rate = bill.ratePerKwh;
+                    const subtotal = (consumption !== 'N/A') ? `₱${(consumption * rate).toFixed(2)}` : 'N/A';
+                    computationHtml = `<div style="font-size:0.65rem; color:#4b5563; margin-top:0.1rem; white-space:nowrap; overflow-x:auto;">Prev:${previous} | Cur:${current} | Cons:${consumption} @₱${rate} | Sub:${subtotal}</div>`;
+                }
+                billsListHtml += `
+                    <div style="margin-bottom:0.4rem; border-bottom:1px solid #eef2f6; padding-bottom:0.3rem;">
+                        <div style="font-weight:600; font-size:0.8rem;">${escapeHtml(bill.description)}</div>
+                        <div style="font-size:0.7rem;">Due:${dueDate} | Paid:${paidDate}</div>
+                        <div style="font-size:0.8rem;">Amount: ₱${bill.amount.toLocaleString()}</div>
+                        ${computationHtml}
+                    </div>
+                `;
+            }
+            allCards.push(`
+                <div class="receipt-card">
+                    <div class="receipt-header">
+                        🧾 ${escapeHtml(clientData.name)} <span style="font-size:0.6rem;">(Rm ${escapeHtml(clientData.room)}, ${escapeHtml(clientData.level)})</span>
+                    </div>
+                    <div class="receipt-details">
+                        ${billsListHtml}
+                        <div style="margin-top:0.3rem; font-weight:700; text-align:right; font-size:0.75rem; border-top:1px solid #ccc; padding-top:0.2rem;">
+                            TOTAL: ₱${clientData.total.toLocaleString()}
+                        </div>
+                    </div>
+                    <div class="footer">Rentor System</div>
+                </div>
+            `);
+        }
+
+        if (!allCards.length) {
+            alert('No valid client data to print.');
             return;
         }
 
-        let cardsHtml = '';
-        for (const client of clients) {
-            cardsHtml += `
-                <div class="receipt-card">
-                    <div class="receipt-header">
-                        🧾 ${escapeHtml(client.name)}
-                        <span style="font-size:0.65rem; font-weight:normal;"> (Rm ${escapeHtml(client.room)} , ${escapeHtml(client.level)})</span>
+        const cardsPerPage = 8;
+        let pagesHtml = '';
+        for (let i = 0; i < allCards.length; i += cardsPerPage) {
+            let pageCards = allCards.slice(i, i + cardsPerPage);
+            while (pageCards.length < cardsPerPage) {
+                pageCards.push(`
+                    <div class="receipt-card empty-card">
+                        <div class="receipt-header"> </div>
+                        <div class="receipt-details"> </div>
+                        <div class="footer"> </div>
                     </div>
-                    <div class="receipt-details">
-                        <div>Total bills: ${client.billCount}</div>
-                        <div>Pending: ₱${client.pendingTotal.toLocaleString()}</div>
-                        <div>Paid: ₱${client.paidTotal.toLocaleString()}</div>
+                `);
+            }
+            pagesHtml += `
+                <div class="page-container">
+                    <div class="receipt-grid">
+                        ${pageCards.join('')}
                     </div>
-                    <div class="receipt-total">
-                        <strong>Total Amount: ₱${(client.pendingTotal + client.paidTotal).toLocaleString()}</strong>
-                    </div>
-                    <div class="footer">Official Receipt • Rentor System</div>
                 </div>
             `;
         }
@@ -140,77 +186,97 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Rentor - Batch Receipts</title>
+    <title>Batch Receipts - Paid Bills (Full Page)</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
         body {
             font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
             background: white;
-            padding: 0.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+        @page {
+            size: landscape;
+            margin: 0.8cm;
+        }
+        .page-container {
+            page-break-after: always;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .page-container:last-child {
+            page-break-after: auto;
         }
         .receipt-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 0.5rem;
-            page-break-inside: avoid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-auto-rows: 1fr;
+            gap: 0.4rem;
+            flex: 1;
+            min-height: 0;
+            height: 100%;
         }
         .receipt-card {
-            border: 1px dashed #cbd5e1;
-            border-radius: 12px;
-            padding: 0.7rem;
+            border: 1px solid #9ca3af;
+            border-radius: 4px;
+            padding: 0.5rem;
             background: white;
-            break-inside: avoid;
-            page-break-inside: avoid;
-            height: auto;
-            min-height: 140px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            overflow: hidden;
+            height: 100%;
+        }
+        .empty-card {
+            border: 1px dashed #d1d5db;
+            background: #f9fafb;
         }
         .receipt-header {
             font-weight: 700;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             border-bottom: 1px dotted #ccc;
-            margin-bottom: 0.3rem;
-            padding-bottom: 0.2rem;
+            margin-bottom: 0.2rem;
+            padding-bottom: 0.1rem;
+            white-space: nowrap;
+            overflow-x: auto;
         }
         .receipt-details {
-            font-size: 0.75rem;
-            line-height: 1.3;
-            margin: 0.3rem 0;
-        }
-        .receipt-total {
-            font-weight: 700;
-            margin-top: 0.3rem;
-            font-size: 0.8rem;
-            border-top: 1px solid #eee;
-            padding-top: 0.2rem;
+            font-size: 0.7rem;
+            line-height: 1.2;
+            margin: 0.2rem 0;
+            flex: 1;
+            overflow-y: auto;
         }
         .footer {
-            font-size: 0.6rem;
+            font-size: 0.55rem;
             text-align: center;
-            margin-top: 0.3rem;
+            margin-top: 0.2rem;
             color: #64748b;
         }
         @media print {
-            body { margin: 0; padding: 0; }
-            .receipt-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 0.2rem;
+            body {
+                margin: 0;
+                padding: 0;
             }
             .receipt-card {
-                break-inside: avoid;
-                page-break-inside: avoid;
-                border: 1px solid #ccc;
+                border: 1px solid #aaa;
+            }
+            .empty-card {
+                border: 1px solid #ddd;
+                background: white;
             }
             .no-print { display: none; }
         }
     </style>
 </head>
 <body>
-    <div class="receipt-grid">
-        ${cardsHtml}
-    </div>
+    ${pagesHtml}
     <div class="no-print" style="text-align:center; margin:1rem;">
         <button onclick="window.print()">🖨️ Print</button>
     </div>
@@ -225,19 +291,20 @@
         win.document.close();
     } catch (err) {
         console.error(err);
-        alert('Failed to generate receipts: ' + err.message);
+        alert('Print failed: ' + err.message);
     }
 }
-
-  function renderDashboard(container) {
+ function renderDashboard(container) {
     const pending = allBills.filter(b => b.status === 'pending').length;
     const paid = allBills.filter(b => b.status === 'paid').length;
     const totalDue = allBills.filter(b => b.status === 'pending').reduce((s,b) => s + b.amount, 0);
     // Upcoming bills (due in next 7 days)
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    const upcoming = allBills.filter(b => b.status === 'pending' && new Date(b.dueDate) <= sevenDaysFromNow).slice(0, 5);
-    const recent = allBills.slice(0, 6);
+    let upcoming = allBills.filter(b => b.status === 'pending' && new Date(b.dueDate) <= sevenDaysFromNow);
+    upcoming.sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
+    const upcomingToShow = upcoming.slice(0, 3);  // show only 3 upcoming
+    const recent = allBills.slice(0, 3);          // show only 3 recent
 
     container.innerHTML = `
         <div class="welcome-banner" style="background: linear-gradient(135deg, #2c3e8f 0%, #1a237e 100%); border-radius: 28px; padding: 1.5rem; margin-bottom: 1.5rem; color: white;">
@@ -262,13 +329,14 @@
                 <i class="fas fa-peso-sign" style="color: #1d4ed8; font-size: 1.2rem; margin-top: 0.25rem;"></i>
             </div>
         </div>
-        ${upcoming.length ? `
+        ${upcomingToShow.length ? `
             <div class="card" style="margin-top: 0.5rem;">
                 <div class="card-header" style="background: #fefce8;">
                     <i class="fas fa-calendar-exclamation" style="margin-right: 0.5rem;"></i> Upcoming Bills (next 7 days)
+                    ${upcoming.length > 3 ? `<span style="float:right; font-size:0.8rem;"><button class="small" onclick="showSection('bills')">See all ${upcoming.length}</button></span>` : ''}
                 </div>
                 <div class="card-body" style="padding: 0.5rem 1.25rem;">
-                    ${upcoming.map(b => `
+                    ${upcomingToShow.map(b => `
                         <div class="bill-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0;">
                             <div>
                                 <strong>${escapeHtml(b.description)}</strong>
@@ -277,12 +345,14 @@
                             <div class="badge badge-pending" style="font-size: 0.8rem;">₱${b.amount.toLocaleString()}</div>
                         </div>
                     `).join('')}
+                    ${upcoming.length <= 3 ? '' : `<div style="text-align:center; padding:0.5rem;"><button class="small" onclick="showSection('bills')">View all ${upcoming.length} upcoming bills →</button></div>`}
                 </div>
             </div>
         ` : ''}
         <div class="card">
             <div class="card-header">
                 <i class="fas fa-receipt" style="margin-right: 0.5rem;"></i> Recent Bills
+                ${allBills.length > 3 ? `<span style="float:right; font-size:0.8rem;"><button class="small" onclick="showSection('bills')">See all ${allBills.length}</button></span>` : ''}
             </div>
             <div class="card-body" style="padding: 0.5rem 1.25rem;">
                 ${recent.length ? recent.map(b => `
@@ -296,6 +366,7 @@
                         </div>
                     </div>
                 `).join('') : '<div class="empty-state">No bills yet</div>'}
+                ${allBills.length <= 3 ? '' : `<div style="text-align:center; padding:0.5rem;"><button class="small" onclick="showSection('bills')">View all bills →</button></div>`}
             </div>
         </div>
     `;
@@ -346,19 +417,17 @@ async function renderBills(container) {
         </div>
     `;
 
+
+    
     if (filtered.length === 0) {
         container.innerHTML = filterBarHtml + `<div class="empty-state" style="font-size:1.1rem;">🔍 No bills match your filters.</div>`;
         attachFilterEvents();
         // Inside renderBills, after attachFilterEvents() but before building clientsHtml
-let batchPrintButton = '';
-if (currentUser.role === 'admin' || currentUser.role === 'special') {
-    batchPrintButton = `<button class="primary-btn" onclick="printAllReceipts()" style="margin-bottom: 1rem; background: #2c3e8f;"><i class="fas fa-print"></i> Print All Tenants (8 per page)</button>`;
-}
-// Then when setting container.innerHTML, include it:
-container.innerHTML = batchPrintButton + filterBarHtml + clientsHtml;
+        // Then when setting container.innerHTML, include it:
+        container.innerHTML = batchPrintButton + filterBarHtml + clientsHtml;
         return;
     }
-
+    
     // Group by client
     const billsByClient = new Map();
     for (const bill of filtered) {
@@ -375,7 +444,11 @@ container.innerHTML = batchPrintButton + filterBarHtml + clientsHtml;
         }
         billsByClient.get(clientId).bills.push(bill);
     }
-
+    
+    let batchPrintButton = '';
+    if (currentUser.role === 'admin' || currentUser.role === 'special') {
+        batchPrintButton = `<button class="primary-btn" onclick="printAllReceipts()" style="margin-bottom: 1rem; background: #2c3e8f;"><i class="fas fa-print"></i> Print All Tenants (8 per page)</button>`;
+    }
     // Build new UI
     let clientsHtml = '';
     for (const [clientId, clientData] of billsByClient) {
@@ -433,7 +506,7 @@ container.innerHTML = batchPrintButton + filterBarHtml + clientsHtml;
         clientsHtml += `</div></div>`;
     }
 
-    container.innerHTML = filterBarHtml + clientsHtml;
+    container.innerHTML = batchPrintButton + filterBarHtml + clientsHtml;
     attachFilterEvents();
 }
 
@@ -450,7 +523,6 @@ container.innerHTML = batchPrintButton + filterBarHtml + clientsHtml;
     }
     window.deleteBill = async (billId) => { if (!confirm('Delete permanently?')) return; try { await fetch(`/api/bills/${billId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); alert('Bill deleted'); await loadData(); showSection('bills'); } catch(err) { alert(err.message); } };
     window.markPaid = async (billId) => { if (!confirm('Mark as paid?')) return; try { await fetch(`/api/bills/${billId}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } }); await loadData(); showSection('bills'); } catch(e) { alert(e.message); } };
-
 function renderAddBill(container) {
     const tenantOptions = allClients.filter(c => c.role === 'client').map(c => `<option value="${c._id}">${c.name} (Rm ${c.room})</option>`).join('');
 
@@ -458,11 +530,16 @@ function renderAddBill(container) {
         <div class="card"><div class="card-header">➕ Add new bill (manual)</div><div class="card-body">
             <form id="billFormSimple">
                 <select id="clientIdSimple" required>${tenantOptions}</select>
-                <input type="text" placeholder="Description" id="descSimple" required>
-                <input type="number" placeholder="Amount (₱)" id="amountSimple" required>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="text" id="descSimple" list="descSuggestions" placeholder="Description (e.g. Misc Fee)" required style="flex:2;">
+                    <datalist id="descSuggestions"></datalist>
+                    <input type="number" id="amountSimple" placeholder="Amount (₱)" step="0.01" required style="flex:1;">
+                    <button type="button" id="clearDefaultBtn" class="small" style="background:#fee2e2; color:#b91c1c; display: none;" title="Remove saved default">✖</button>
+                </div>
                 <input type="date" id="dueDateSimple" required>
                 <button class="primary-btn" type="submit" id="createBillBtn">Create bill</button>
             </form>
+            <div id="defaultHint" style="font-size:0.75rem; color:#6b7280; margin-top:0.5rem;"></div>
         </div></div>
 
         <div class="card"><div class="card-header">📄 Bill Templates (global)</div><div class="card-body">
@@ -493,13 +570,130 @@ function renderAddBill(container) {
         </div></div>
     `;
 
-    // Manual bill creation (unchanged)
-    document.getElementById('billFormSimple')?.addEventListener('submit', async (e) => { /* ... */ });
+    // ========== 1. MANUAL BILL WITH DATALIST & INSTANT DEFAULT ==========
+    const clientSelect = document.getElementById('clientIdSimple');
+    const descInput = document.getElementById('descSimple');
+    const amountInput = document.getElementById('amountSimple');
+    const clearDefaultBtn = document.getElementById('clearDefaultBtn');
+    const defaultHint = document.getElementById('defaultHint');
+    const datalist = document.getElementById('descSuggestions');
 
-    // ===== Global Templates =====
+    // Build datalist options from existing bills for this client
+    function updateDescSuggestions(clientId) {
+        if (!datalist) return;
+        if (!clientId) {
+            datalist.innerHTML = '';
+            return;
+        }
+        // Get unique descriptions from allBills for this client
+        const clientBills = allBills.filter(b => b.clientId?._id === clientId || b.clientId === clientId);
+        const descriptions = [...new Set(clientBills.map(b => b.description))];
+        datalist.innerHTML = descriptions.map(d => `<option value="${escapeHtml(d)}">`).join('');
+    }
+
+    // Get last used amount (local first, then API default)
+    async function fetchDefaultAmount() {
+        const clientId = clientSelect.value;
+        const description = descInput.value.trim();
+        if (!clientId || !description) {
+            clearDefaultBtn.style.display = 'none';
+            defaultHint.innerHTML = '';
+            return;
+        }
+        // 1. Try to find last used amount from local allBills (most recent bill)
+        const lastBill = allBills
+            .filter(b => (b.clientId?._id === clientId || b.clientId === clientId) && b.description === description)
+            .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+        if (lastBill) {
+            amountInput.value = lastBill.amount;
+            clearDefaultBtn.style.display = 'inline-block';
+            defaultHint.innerHTML = `💡 Last used amount for "${description}" was ₱${lastBill.amount}. You can change it.`;
+            return;
+        }
+        // 2. Fallback to server (if a default was saved manually)
+        try {
+            const data = await apiGet(`/api/bill-defaults/${clientId}/${encodeURIComponent(description)}`);
+            if (data.defaultAmount !== null && data.defaultAmount !== undefined) {
+                amountInput.value = data.defaultAmount;
+                clearDefaultBtn.style.display = 'inline-block';
+                defaultHint.innerHTML = `💡 Default amount for "${description}" is ₱${data.defaultAmount}. You can change it.`;
+            } else {
+                clearDefaultBtn.style.display = 'none';
+                defaultHint.innerHTML = '';
+            }
+        } catch(e) { console.warn(e); }
+    }
+
+    // Events for manual bill form
+    clientSelect.addEventListener('change', () => {
+        updateDescSuggestions(clientSelect.value);
+        fetchDefaultAmount();
+    });
+    descInput.addEventListener('input', () => {
+        if (!descInput.value.trim()) return;
+        fetchDefaultAmount();
+    });
+    descInput.addEventListener('change', fetchDefaultAmount); // when selecting from datalist
+
+    // Remove default button
+    clearDefaultBtn.addEventListener('click', async () => {
+        const clientId = clientSelect.value;
+        const description = descInput.value.trim();
+        if (!clientId || !description) return;
+        if (!confirm(`Remove the saved default amount for "${description}"?`)) return;
+        try {
+            await apiDelete(`/api/bill-defaults/${clientId}/${encodeURIComponent(description)}`);
+            amountInput.value = '';
+            clearDefaultBtn.style.display = 'none';
+            defaultHint.innerHTML = 'Default removed.';
+            setTimeout(() => { defaultHint.innerHTML = ''; }, 2000);
+        } catch(e) { alert(e.message); }
+    });
+
+    // Submit manual bill (also saves the amount as default)
+    document.getElementById('billFormSimple')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('createBillBtn');
+        const original = btn.innerText;
+        btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
+        btn.disabled = true;
+
+        const clientId = clientSelect.value;
+        const description = descInput.value.trim();
+        const amount = parseFloat(amountInput.value);
+        const dueDate = document.getElementById('dueDateSimple').value;
+
+        if (!clientId || !description || isNaN(amount) || !dueDate) {
+            alert('Please fill all fields correctly');
+            btn.innerHTML = original; btn.disabled = false;
+            return;
+        }
+
+        try {
+            // Create the bill
+            await apiPost('/api/bills', { clientId, description, amount, dueDate });
+            // Save this amount as the default for future (overwrites previous)
+            await apiPost('/api/bill-defaults', { clientId, description, defaultAmount: amount });
+            await loadData();
+            showSection('bills');
+        } catch(err) {
+            console.error(err);
+            alert('Failed to create bill: ' + err.message);
+        } finally {
+            btn.innerHTML = original;
+            btn.disabled = false;
+        }
+    });
+
+    // Initialize datalist & default if client already selected
+    if (clientSelect.value) {
+        updateDescSuggestions(clientSelect.value);
+        fetchDefaultAmount();
+    }
+
+    // ========== 2. GLOBAL TEMPLATES ==========
     let globalTemplates = [];
     const templatesListDiv = document.getElementById('templatesList');
-
 
     async function loadGlobalTemplates() {
         try {
@@ -557,10 +751,9 @@ function renderAddBill(container) {
         } catch(err) { alert(err.message); }
     });
 
-    // Load templates on page load
     loadGlobalTemplates();
 
-    // ===== Meter reading form =====
+    // ========== 3. METER READING BILL GENERATION ==========
     const meterTenant = document.getElementById('meterTenantSelect');
     const meterTemplateSelect = document.getElementById('meterTemplateSelect');
     const meterRate = document.getElementById('meterRate');
@@ -600,12 +793,12 @@ function renderAddBill(container) {
         if (meterTemplateSelect.value) fetchLastReading();
     });
 
-    // Generate bill
     document.getElementById('meterBillForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
         const original = btn.innerText;
-        btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>'; btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
+        btn.disabled = true;
         try {
             const selectedTemplate = globalTemplates.find(t => t._id === meterTemplateSelect.value);
             if (!selectedTemplate) throw new Error('Please select a template');
@@ -613,7 +806,7 @@ function renderAddBill(container) {
                 clientId: meterTenant.value,
                 description: selectedTemplate.description,
                 currentReading: parseFloat(meterReadingInput.value),
-                ratePerKwh: parseFloat(meterRate.value),   // works with existing endpoint
+                ratePerKwh: parseFloat(meterRate.value),
                 minimumAmount: parseFloat(meterMin.value) || null,
                 dueDay: parseInt(meterDueDay.value)
             };
@@ -621,12 +814,10 @@ function renderAddBill(container) {
             alert('Bill generated!');
             await loadData();
             showSection('bills');
-        } catch(err) { alert(err.message); } finally { btn.innerHTML = original; btn.disabled = false; }
+        } catch(err) { alert(err.message); }
+        finally { btn.innerHTML = original; btn.disabled = false; }
     });
 }
-
-
-
 
     // ==================== TENANTS (USERS) ====================
     function renderUsers(container) {
@@ -639,17 +830,23 @@ function renderAddBill(container) {
                     </div>
                 `).join('')}
             </div></div>
-            <div class="card"><div class="card-header">➕ Register new tenant</div><div class="card-body">
-                <form id="registerFormSimple">
-                    <input type="text" placeholder="Full name" id="regName" required> 
-                    <input type="text" placeholder="Username" id="regUsername" required>
-                    <input type="password" placeholder="Password" id="regPass" required>
-                    <input type="text" placeholder="Room (e.g. 204)" id="regRoom" required>
-                    <input type="text" placeholder="Level (e.g. 2nd)" id="regLevel" required>
-                    <input type="number" placeholder="Due day (1-31)" id="regDueDay">
-                    <button class="primary-btn" type="submit">Create tenant</button>
-                </form>
-            </div></div>`;
+            // Inside renderUsers, where the registration card is built
+<div class="card"><div class="card-header">➕ Register new user</div><div class="card-body">
+    <form id="registerFormSimple">
+        <input type="text" placeholder="Full name" id="regName" required> 
+        <input type="text" placeholder="Username" id="regUsername" required>
+        <input type="password" placeholder="Password" id="regPass" required>
+        <select id="regRole" required>
+            <option value="client">Client (Tenant)</option>
+            <option value="special">Special Staff</option>
+            <option value="admin">Admin</option>
+        </select>
+        <input type="text" placeholder="Room (e.g. 204)" id="regRoom" required>
+        <input type="text" placeholder="Level (e.g. 2nd)" id="regLevel" required>
+        <input type="number" placeholder="Due day (1-31)" id="regDueDay">
+        <button class="primary-btn" type="submit">Create user</button>
+    </form>
+</div></div>`;
         // Delete user
         document.querySelectorAll('.delete-user-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
@@ -682,7 +879,7 @@ function renderAddBill(container) {
         // Register tenant
         document.getElementById('registerFormSimple')?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const payload = { username: document.getElementById('regUsername').value, password: document.getElementById('regPass').value, name: document.getElementById('regName').value, role: 'client', room: document.getElementById('regRoom').value, level: document.getElementById('regLevel').value, dueDay: document.getElementById('regDueDay')?.value || null };
+            const payload = { username: document.getElementById('regUsername').value, password: document.getElementById('regPass').value, name: document.getElementById('regName').value, role: document.getElementById('regRole').value, room: document.getElementById('regRoom').value, level: document.getElementById('regLevel').value, dueDay: document.getElementById('regDueDay')?.value || null };
             try {
                 await apiPost('/api/users', payload);
                 alert('Tenant created');
@@ -773,115 +970,225 @@ function renderAddBill(container) {
         if (meta && status === 'seen') meta.innerHTML = `${new Date().toLocaleTimeString()} <i class="fas fa-check-double"></i>`;
     }
     async function renderMessages(container) {
-        updateUnreadBadge();
-        container.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-pulse"></i> Loading messages...</div>`;
-        try {
-            let contacts = [], unreadPerContact = {};
-            try { contacts = await apiGet('/api/messages/contacts'); } catch(e) { console.warn(e); contacts = []; }
-            try { unreadPerContact = await apiGet('/api/messages/unread-per-contact'); } catch(e) { console.warn(e); unreadPerContact = {}; }
-            allContacts = contacts;
-            let contactsHtml = `<div class="contacts-list">`;
-            if (contacts.length === 0) contactsHtml += `<div class="empty-state">No conversations yet.</div>`;
-            else {
-                contacts.forEach(contact => {
-const isOnline = contact.lastSeen && (new Date() - new Date(contact.lastSeen) < 120000);
-const unreadCount = unreadPerContact[contact._id] || 0;
-const avatarInitial = contact.name.charAt(0).toUpperCase();
-contactsHtml += `
-    <div class="contact-item" data-user-id="${contact._id}" data-user-name="${contact.name}">
-        <div class="avatar-wrapper">
-            <div class="avatar">${avatarInitial}</div>
-            ${isOnline ? '<div class="online-dot"></div>' : ''}
-        </div>
-        <div class="contact-info">
-            <div class="contact-name">${escapeHtml(contact.name)}${unreadCount>0 ? `<span class="unread-badge">${unreadCount}</span>` : ''}</div>
-            <div class="contact-lastseen">${isOnline ? 'Online' : (contact.lastSeen ? `Last seen ${new Date(contact.lastSeen).toLocaleString()}` : 'Offline')}</div>
-        </div>
-    </div>
-`;                });
-            }
-            contactsHtml += `</div>`;
-            if (currentUser.role !== 'client') contactsHtml += `<div class="card" style="margin-top:1rem;"><div class="card-header">Start new chat</div><div class="card-body"><select id="newChatSelect">${allClients.filter(c=>c.role==='client').map(c=>`<option value="${c._id}" data-name="${c.name}" data-username="${c.username}">${c.name} (${c.room})</option>`).join('')}</select><button class="primary-btn" id="startNewChatBtn">Message</button></div></div>`;
-            const chatHtml = `<div class="chat-view" id="chatView"><div class="back-to-contacts"><button class="small" id="backBtn"><i class="fas fa-arrow-left"></i> Back</button></div><div style="display:flex; justify-content:space-between; padding:1rem; border-bottom:1px solid #eee;"><div class="chat-header" id="chatHeader"></div><button id="deleteConversationBtn" class="small" style="background:#fee2e2; color:#b91c1c;">Delete</button></div><div class="chat-messages" id="chatMessages"></div><div id="typingIndicator" style="display:none; padding:0.25rem 1rem;">Typing...</div><div class="chat-input"><input id="chatInput" placeholder="Type a message..."><button class="primary-btn" id="sendChatBtn">Send</button></div></div>`;
-            container.innerHTML = `<div class="messages-container">${contactsHtml}${chatHtml}</div>`;
-            document.querySelectorAll('.contact-item').forEach(el => el.addEventListener('click', async () => { const userId = el.getAttribute('data-user-id'), userName = el.getAttribute('data-user-name'); await openChat(userId, userName); }));
-            const startBtn = document.getElementById('startNewChatBtn');
-            if (startBtn) startBtn.addEventListener('click', async () => { const sel = document.getElementById('newChatSelect'); if (sel.value) { const opt = sel.options[sel.selectedIndex]; await openChat(sel.value, opt.getAttribute('data-name')); } });
-            document.getElementById('backBtn')?.addEventListener('click', () => { document.getElementById('chatView').style.display = 'none'; currentChatUserId = null; });
-            const chatInput = document.getElementById('chatInput');
-            let typingTimeout = null;
-            chatInput?.addEventListener('input', () => {
-                if (socket?.connected && currentChatUserId) {
-                    socket.emit('typing', { toUserId: currentChatUserId, isTyping: true });
-                    clearTimeout(typingTimeout);
-                    typingTimeout = setTimeout(() => socket.emit('typing', { toUserId: currentChatUserId, isTyping: false }), 1000);
+    updateUnreadBadge();
+    container.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-pulse"></i> Loading messages...</div>`;
+    try {
+        let contacts = [];
+        let unreadPerContact = {};
+        try { contacts = await apiGet('/api/messages/contacts'); } catch(e) { console.warn(e); contacts = []; }
+        try { unreadPerContact = await apiGet('/api/messages/unread-per-contact'); } catch(e) { console.warn(e); unreadPerContact = {}; }
+
+        // Admin/Special see all tenants as contacts
+        if (currentUser.role === 'admin' || currentUser.role === 'special') {
+            const allTenants = allClients.filter(c => c.role === 'client');
+            const existingIds = new Set(contacts.map(c => c._id));
+            for (const tenant of allTenants) {
+                if (!existingIds.has(tenant._id)) {
+                    contacts.push({
+                        _id: tenant._id,
+                        name: tenant.name,
+                        username: tenant.username,
+                        lastSeen: null
+                    });
                 }
+            }
+        }
+
+        // Sort: unread first, then by last message date (if any)
+        for (let contact of contacts) {
+            try {
+                const msgs = await apiGet(`/api/messages?withUserId=${contact._id}`);
+                const lastMsg = msgs.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+                contact.lastMsgDate = lastMsg ? new Date(lastMsg.createdAt) : new Date(0);
+            } catch(e) { contact.lastMsgDate = new Date(0); }
+        }
+        contacts.sort((a,b) => {
+            const aUnread = unreadPerContact[a._id] || 0;
+            const bUnread = unreadPerContact[b._id] || 0;
+            if (aUnread !== bUnread) return bUnread - aUnread;
+            return b.lastMsgDate - a.lastMsgDate;
+        });
+
+        // Build contacts HTML with unread badge and highlight
+        let contactsHtml = `<div class="contacts-list">`;
+        if (contacts.length === 0) {
+            contactsHtml += `<div class="empty-state">No tenants yet. Register some tenants first.</div>`;
+        } else {
+            for (const contact of contacts) {
+                const isOnline = contact.lastSeen && (new Date() - new Date(contact.lastSeen) < 120000);
+                const unreadCount = unreadPerContact[contact._id] || 0;
+                const avatarInitial = contact.name.charAt(0).toUpperCase();
+                const unreadClass = unreadCount > 0 ? 'contact-unread' : '';
+                contactsHtml += `
+                    <div class="contact-item ${unreadClass}" data-user-id="${contact._id}" data-user-name="${contact.name}">
+                        <div class="avatar-wrapper">
+                            <div class="avatar">${avatarInitial}</div>
+                            ${isOnline ? '<div class="online-dot"></div>' : ''}
+                        </div>
+                        <div class="contact-info">
+                            <div class="contact-name">
+                                ${escapeHtml(contact.name)}
+                                ${unreadCount > 0 ? `<span class="unread-badge">${unreadCount}</span>` : ''}
+                            </div>
+                            <div class="contact-lastseen">${isOnline ? 'Online' : (contact.lastSeen ? `Last seen ${new Date(contact.lastSeen).toLocaleString()}` : 'Offline')}</div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        contactsHtml += `</div>`;
+
+        // Chat panel
+        const chatHtml = `
+            <div class="chat-panel">
+                <div class="chat-view" id="chatView">
+                    <div class="back-to-contacts"><button class="small" id="backBtn"><i class="fas fa-arrow-left"></i> Back</button></div>
+                    <div style="display:flex; justify-content:space-between; padding:1rem; border-bottom:1px solid #eee;">
+                        <div class="chat-header" id="chatHeader"></div>
+                        <button id="deleteConversationBtn" class="small" style="background:#fee2e2; color:#b91c1c;">Delete</button>
+                    </div>
+                    <div class="chat-messages" id="chatMessages"><div class="empty-state">Click a contact to start messaging</div></div>
+                    <div id="typingIndicator" style="display:none; padding:0.25rem 1rem;">Typing...</div>
+                    <div class="chat-input">
+                        <input id="chatInput" placeholder="Type a message..." disabled>
+                        <button class="primary-btn" id="sendChatBtn" disabled>Send</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = `<div class="messenger-container"><div class="contacts-panel">${contactsHtml}</div>${chatHtml}</div>`;
+        allContacts = contacts;
+
+        // Event handlers
+        document.querySelectorAll('.contact-item').forEach(el => {
+            el.addEventListener('click', async () => {
+                document.querySelectorAll('.contact-item').forEach(c => c.classList.remove('active'));
+                el.classList.add('active');
+                const userId = el.getAttribute('data-user-id');
+                const userName = el.getAttribute('data-user-name');
+                await openChat(userId, userName);
             });
-            const sendBtn = document.getElementById('sendChatBtn');
-            const sendMessage = async () => {
-                if (!currentChatUserId) return;
-                const text = chatInput.value.trim();
-                if (!text) return;
-                sendBtn.disabled = true; sendBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
-                const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
-                appendMessageOptimistic(text, tempId);
-                chatInput.value = '';
-                if (socket?.connected) {
-                    socket.emit('private message', { toUserId: currentChatUserId, message: text, tempId });
-                    setTimeout(() => {
-                        const stillThere = document.querySelector(`.message-row[data-temp-id="${tempId}"]`);
-                        if (stillThere) { console.warn('Optimistic not replaced, reloading chat'); openChat(currentChatUserId, currentChatUserName); }
-                        if (sendBtn.disabled) { sendBtn.disabled = false; sendBtn.innerHTML = 'Send'; }
-                    }, 2000);
-                } else {
-                    try {
-                        const recipient = [...allContacts, ...allClients].find(c => String(c._id) === String(currentChatUserId));
-                        if (!recipient) throw new Error('Recipient not found');
-                        await apiPost('/api/messages', { toUsername: recipient.username, subject: 'Chat', message: text });
-                        await openChat(currentChatUserId, currentChatUserName);
-                    } catch(err) { alert(err.message); removeTempMessage(tempId); } finally { sendBtn.disabled = false; sendBtn.innerHTML = 'Send'; }
-                }
-            };
-            sendBtn?.addEventListener('click', sendMessage);
-            chatInput?.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
-        } catch(err) { container.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`; }
-    }
-    async function openChat(userId, userName) {
-        currentChatUserId = userId; currentChatUserName = userName;
-        const chatView = document.getElementById('chatView'), chatHeader = document.getElementById('chatHeader'), chatMessagesDiv = document.getElementById('chatMessages');
-        if (!chatView || !chatHeader || !chatMessagesDiv) return;
-        chatHeader.innerHTML = `<i class="fas fa-user-circle"></i> ${escapeHtml(userName)}`;
-        chatMessagesDiv.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-pulse"></i> Loading messages...</div>';
-        chatView.style.display = 'flex';
-        if (window.innerWidth <= 600) chatView.classList.add('active-mobile');
-        try {
-            const messages = await apiGet(`/api/messages?withUserId=${userId}`);
-            const sorted = [...messages].sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
-            chatMessagesDiv.innerHTML = '';
-            if (sorted.length === 0) { chatMessagesDiv.innerHTML = '<div class="empty-state">No messages yet.</div>'; return; }
-            for (const msg of sorted) {
-                const senderId = msg.fromUser._id ? msg.fromUser._id : msg.fromUser;
-                const isOutgoing = String(senderId) === String(currentUser._id);
-                const row = document.createElement('div');
-                row.className = `message-row ${isOutgoing ? 'outgoing' : 'incoming'}`;
-                row.setAttribute('data-msg-id', msg._id);
-                row.style.cssText = `display:flex; width:100%; justify-content:${isOutgoing ? 'flex-end' : 'flex-start'};`;
-                row.innerHTML = `<div class="message-bubble ${isOutgoing ? 'outgoing' : 'incoming'}"><div>${escapeHtml(msg.message)}</div><div class="message-meta">${new Date(msg.createdAt).toLocaleTimeString()} ${isOutgoing ? (msg.isRead ? '<i class="fas fa-check-double"></i>' : '<i class="fas fa-check"></i>') : ''}</div></div>`;
-                chatMessagesDiv.appendChild(row);
+        });
+
+        document.getElementById('backBtn')?.addEventListener('click', () => {
+            document.getElementById('chatView').style.display = 'none';
+            currentChatUserId = null;
+        });
+
+        const chatInput = document.getElementById('chatInput');
+        let typingTimeout = null;
+        chatInput?.addEventListener('input', () => {
+            if (socket?.connected && currentChatUserId) {
+                socket.emit('typing', { toUserId: currentChatUserId, isTyping: true });
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => socket.emit('typing', { toUserId: currentChatUserId, isTyping: false }), 1000);
             }
-            chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
-            const deleteBtn = document.getElementById('deleteConversationBtn');
-            if (deleteBtn) deleteBtn.onclick = async () => {
-                if (confirm('Delete entire conversation?')) {
-                    await apiDelete(`/api/messages/conversation/${userId}`);
-                    alert('Conversation deleted');
-                    chatView.style.display = 'none';
-                    currentChatUserId = null;
-                    renderMessages(document.getElementById('mainContent'));
-                }
-            };
-        } catch(err) { chatMessagesDiv.innerHTML = '<div class="empty-state">Failed to load messages.</div>'; }
+        });
+
+        const sendBtn = document.getElementById('sendChatBtn');
+        const sendMessage = async () => {
+            if (!currentChatUserId) return;
+            const text = chatInput.value.trim();
+            if (!text) return;
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
+            const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
+            appendMessageOptimistic(text, tempId);
+            chatInput.value = '';
+            if (socket?.connected) {
+                socket.emit('private message', { toUserId: currentChatUserId, message: text, tempId });
+                setTimeout(() => {
+                    const stillThere = document.querySelector(`.message-row[data-temp-id="${tempId}"]`);
+                    if (stillThere) {
+                        console.warn('Optimistic not replaced, reloading chat');
+                        openChat(currentChatUserId, currentChatUserName);
+                    }
+                    if (sendBtn.disabled) { sendBtn.disabled = false; sendBtn.innerHTML = 'Send'; }
+                }, 2000);
+            } else {
+                try {
+                    const recipient = [...allContacts, ...allClients].find(c => String(c._id) === String(currentChatUserId));
+                    if (!recipient) throw new Error('Recipient not found');
+                    await apiPost('/api/messages', { toUsername: recipient.username, subject: 'Chat', message: text });
+                    await openChat(currentChatUserId, currentChatUserName);
+                } catch(err) { alert(err.message); removeTempMessage(tempId); }
+                finally { sendBtn.disabled = false; sendBtn.innerHTML = 'Send'; }
+            }
+        };
+        sendBtn?.addEventListener('click', sendMessage);
+        chatInput?.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
+    } catch(err) {
+        container.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
     }
+}
+async function openChat(userId, userName) {
+    currentChatUserId = userId;
+    currentChatUserName = userName;
+    const chatView = document.getElementById('chatView');
+    const chatHeader = document.getElementById('chatHeader');
+    const chatMessagesDiv = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendChatBtn');
+    const deleteBtn = document.getElementById('deleteConversationBtn');
+
+    if (!chatView || !chatHeader || !chatMessagesDiv) return;
+
+    // Enable input and send button
+    if (chatInput) chatInput.disabled = false;
+    if (sendBtn) sendBtn.disabled = false;
+
+    chatHeader.innerHTML = `<span><i class="fas fa-user-circle"></i> ${escapeHtml(userName)}</span>`;
+    chatMessagesDiv.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-pulse"></i> Loading messages...</div>';
+    chatView.style.display = 'flex';
+    if (window.innerWidth <= 600) chatView.classList.add('active-mobile');
+
+    try {
+        const messages = await apiGet(`/api/messages?withUserId=${userId}`);
+        const sorted = [...messages].sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
+        chatMessagesDiv.innerHTML = '';
+        if (sorted.length === 0) {
+            chatMessagesDiv.innerHTML = '<div class="empty-state">No messages yet. Send a message to start the conversation.</div>';
+            return;
+        }
+
+        for (const msg of sorted) {
+            const senderId = msg.fromUser._id ? msg.fromUser._id : msg.fromUser;
+            const isOutgoing = String(senderId) === String(currentUser._id);
+            const row = document.createElement('div');
+            row.className = `message-row ${isOutgoing ? 'outgoing' : 'incoming'}`;
+            row.setAttribute('data-msg-id', msg._id);
+            row.style.cssText = `display:flex; width:100%; justify-content:${isOutgoing ? 'flex-end' : 'flex-start'};`;
+            row.innerHTML = `
+                <div class="message-bubble ${isOutgoing ? 'outgoing' : 'incoming'}">
+                    <div>${escapeHtml(msg.message)}</div>
+                    <div class="message-meta">
+                        ${new Date(msg.createdAt).toLocaleTimeString()}
+                        ${isOutgoing ? (msg.isRead ? '<i class="fas fa-check-double"></i>' : '<i class="fas fa-check"></i>') : ''}
+                    </div>
+                </div>
+            `;
+            chatMessagesDiv.appendChild(row);
+        }
+        chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+
+        deleteBtn.onclick = async () => {
+            if (confirm('Delete entire conversation?')) {
+                await apiDelete(`/api/messages/conversation/${userId}`);
+                alert('Conversation deleted');
+                if (chatInput) chatInput.disabled = true;
+                if (sendBtn) sendBtn.disabled = true;
+                chatMessagesDiv.innerHTML = '<div class="empty-state">Conversation deleted. Select another contact.</div>';
+                chatHeader.innerHTML = '<span>Select a contact</span>';
+                currentChatUserId = null;
+                chatView.style.display = 'none';
+                renderMessages(document.getElementById('mainContent'));
+            }
+        };
+    } catch (err) {
+        chatMessagesDiv.innerHTML = '<div class="empty-state">Failed to load messages.</div>';
+    }
+}
 let isLoading = false;
 async function showSection(section) {
     if (isLoading) return;
