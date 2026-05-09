@@ -25,8 +25,13 @@ const PushSubscription = require('./models/PushSubscription');
 const MeterReading = require('./models/MeterReading');
 const BillTemplate = require('./models/BillTemplate');
 const BillDefault = require('./models/BillDefault');
+const RetentionSetting = require('./models/RetentionSetting');
+const cron = require('node-cron');
 
-// ==================== Password Helper ====================
+const cron = require('node-cron');
+
+
+// ================== Password Helper ====================
 const PASSWORD_SECRET = process.env.PASSWORD_SECRET || 'fallback-secret-change-this';
 function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString('hex');
@@ -97,7 +102,71 @@ io.on('connection', (socket) => {
 });
 
 // ==================== API Routes (ALL must be BEFORE the catch‑all) ====================
+app.get('/api/settings/retention', authMiddleware, async (req, res) => {
+    try {
+        let setting = await RetentionSetting.findOne();
+        if (!setting) {
+            setting = new RetentionSetting({ monthsToKeep: 12 });
+            await setting.save();
+        }
+        res.json(setting);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
+// Update retention setting (admin only)
+app.post('/api/settings/retention', authMiddleware, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    try {
+        const { monthsToKeep } = req.body;
+        if (!monthsToKeep || monthsToKeep < 1) return res.status(400).json({ error: 'Invalid months' });
+        let setting = await RetentionSetting.findOne();
+        if (!setting) setting = new RetentionSetting();
+        setting.monthsToKeep = monthsToKeep;
+        setting.updatedAt = new Date();
+        await setting.save();
+        res.json(setting);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Manual cleanup endpoint (admin only) – deletes data older than retention period
+app.post('/api/cleanup', authMiddleware, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    try {
+        const setting = await RetentionSetting.findOne();
+        if (!setting) return res.status(400).json({ error: 'No retention setting found' });
+        const cutoffDate = new Date();
+        cutoffDate.setMonth(cutoffDate.getMonth() - setting.monthsToKeep);
+
+        const Bill = require('./models/Bill');
+        const Message = require('./models/Message');
+        const MeterReading = require('./models/MeterReading');
+        const BillDefault = require('./models/BillDefault');
+
+        // Delete old bills
+        const billResult = await Bill.deleteMany({ createdAt: { $lt: cutoffDate } });
+        // Delete old messages
+        const msgResult = await Message.deleteMany({ createdAt: { $lt: cutoffDate } });
+        // Delete old meter readings
+        const meterResult = await MeterReading.deleteMany({ date: { $lt: cutoffDate } });
+        // Optionally delete bill defaults (they are not time‑based; keep them)
+
+        setting.lastRun = new Date();
+        await setting.save();
+
+        res.json({
+            message: `Cleaned up data older than ${setting.monthsToKeep} months`,
+            billsDeleted: billResult.deletedCount,
+            messagesDeleted: msgResult.deletedCount,
+            meterReadingsDeleted: meterResult.deletedCount
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 // Public registration
 app.post('/api/register', async (req, res) => {
     try {
@@ -404,6 +473,9 @@ app.get('*', (req, res) => {
 mongoose.connect(process.env.MONGODB_URI)
     .then(async () => {
         console.log('✅ MongoDB connected');
+
+        
+
         const adminExists = await User.findOne({ role: 'admin' });
         if (!adminExists) {
             const admin = new User({
@@ -415,6 +487,24 @@ mongoose.connect(process.env.MONGODB_URI)
             });
             await admin.save();
             console.log('✅ Admin created: admin / admin123');
+
+            // Run every Sunday at 2:00 AM
+cron.schedule('0 2 * * 0', async () => {
+    try {
+        const cutoffDate = new Date();
+        cutoffDate.setMonth(cutoffDate.getMonth() - 3);  // Keep only last 3 months
+
+        // Delete old data
+        const billsDeleted = await Bill.deleteMany({ createdAt: { $lt: cutoffDate } });
+        const messagesDeleted = await Message.deleteMany({ createdAt: { $lt: cutoffDate } });
+        const readingsDeleted = await MeterReading.deleteMany({ date: { $lt: cutoffDate } });
+
+        console.log(`Auto cleanup completed at ${new Date().toISOString()}`);
+        console.log(`Deleted: ${billsDeleted.deletedCount} bills, ${messagesDeleted.deletedCount} messages, ${readingsDeleted.deletedCount} meter readings (older than 3 months).`);
+    } catch (err) {
+        console.error('Auto cleanup error:', err);
+    }
+});
         }
         server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
     })
