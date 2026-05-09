@@ -42,6 +42,27 @@ router.post('/', authMiddleware, adminOrSpecial, async (req, res) => {
     res.status(201).json(bill);
 });
 
+router.post('/', authMiddleware, async (req, res) => {
+    try {
+        const { clientId, description, amount, dueDate } = req.body;
+        if (!clientId || !description || !amount || !dueDate) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        const newBill = new Bill({
+            clientId,
+            description,
+            amount,
+            dueDate,
+            status: 'pending'
+        });
+        await newBill.save();
+        res.status(201).json(newBill);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
 router.put('/:id/pay', authMiddleware, adminOrSpecial, async (req, res) => {
     const bill = await Bill.findById(req.params.id);
     if (!bill) return res.status(404).json({ error: 'Not found' });
