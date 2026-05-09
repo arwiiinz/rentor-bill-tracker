@@ -88,6 +88,14 @@
     }
 
     
+    function formatDate(date) {
+    if (!date) return '';
+    const d = new Date(date);
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    const year = d.getFullYear();
+    return `${month}/${day}/${year}`;
+}
 async function printAllReceipts() {
     try {
         const monthInput = document.getElementById('printMonth');
@@ -131,16 +139,15 @@ async function printAllReceipts() {
             return;
         }
 
-        // Optionally mark bills as paid after printing (for pending bills in "all" mode)
+        // Optionally mark bills as paid after printing
         if (shouldMarkPaid && printMode === 'all') {
             const pendingBills = billsToPrint.filter(b => b.status === 'pending');
             for (const bill of pendingBills) {
                 try {
                     await fetch(`/api/bills/${bill._id}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
-                } catch(e) { console.warn('Failed to mark bill paid:', bill._id); }
+                } catch(e) { console.warn(e); }
             }
             await loadData();
-            // Re‑fetch bills to reflect updated statuses for the print preview
             const updatedBills = await apiGet('/api/bills');
             allBills = updatedBills;
             if (printMode === 'all') {
@@ -151,7 +158,7 @@ async function printAllReceipts() {
             }
         }
 
-        // Group by client (store overall total only, no pending/paid breakdown)
+        // Group by client
         const billsByClient = new Map();
         for (const bill of billsToPrint) {
             const client = bill.clientId;
@@ -175,37 +182,37 @@ async function printAllReceipts() {
             clientData.bills.sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
             let billsListHtml = '';
             for (const bill of clientData.bills) {
-                const dueDate = new Date(bill.dueDate).toLocaleDateString();
-                const paidDateHtml = bill.paidDate ? `<span>Paid: ${new Date(bill.paidDate).toLocaleDateString()}</span>` : '';
+                const dueDate = formatDate(bill.dueDate);
+                // No paid date displayed at all
                 let computationHtml = '';
                 if (bill.ratePerKwh !== undefined && bill.ratePerKwh !== null) {
-                    const consumption = bill.consumptionKwh ?? 'N/A';
-                    const previous = bill.previousReading ?? 'N/A';
-                    const current = bill.currentReading ?? 'N/A';
+                    const consumption = bill.consumptionKwh ?? 0;
+                    const previous = bill.previousReading ?? 0;
+                    const current = bill.currentReading ?? 0;
                     const rate = bill.ratePerKwh;
-                    const subtotal = (consumption !== 'N/A') ? `₱${(consumption * rate).toFixed(2)}` : 'N/A';
-                    computationHtml = `<div style="font-size:0.65rem; color:#4b5563; margin-top:0.1rem; white-space:nowrap; overflow-x:auto;">Prev:${previous} | Cur:${current} | Cons:${consumption} @₱${rate} | Sub:${subtotal}</div>`;
+                    const subtotalNum = consumption * rate;
+                    computationHtml = `
+                        <div style="font-size:0.65rem; color:#4b5563; margin-top:0.1rem; white-space:nowrap; overflow-x:auto;">
+                            Prev: ${formatNumber(previous)} | Cur: ${formatNumber(current)} | Cons: ${formatNumber(consumption)} @ ₱${formatNumber(rate)} | Sub: ₱${formatNumber(subtotalNum)}
+                        </div>
+                    `;
                 }
                 billsListHtml += `
                     <div style="margin-bottom:0.4rem; border-bottom:1px solid #eef2f6; padding-bottom:0.3rem;">
                         <div style="font-weight:600; font-size:0.8rem;">${escapeHtml(bill.description)}</div>
-                        <div style="font-size:0.7rem;">Due:${dueDate} ${paidDateHtml}</div>
-                        <div style="font-size:0.8rem;">Amount: ₱${bill.amount.toLocaleString()}</div>
+                        <div style="font-size:0.7rem;">Due: ${dueDate}</div>
+                        <div style="font-size:0.8rem;">Amount: ₱${formatNumber(bill.amount)}</div>
                         ${computationHtml}
                     </div>
                 `;
             }
-
-            // Signature section (admin signs)
             const signatureHtml = `
                 <div style="margin-top: 0.5rem; padding-top: 0.3rem; border-top: 1px dashed #ccc;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                         <div style="font-size: 0.7rem;">Admin signature: ______________________</div>
                         <div style="font-size: 0.7rem;">Date: _____________</div>
                     </div>
-                    <div style="margin-top: 0.2rem; font-size: 0.65rem; color: #64748b;">
-                        By signing, I confirm payment has been received.
-                    </div>
+                    <div style="margin-top: 0.2rem; font-size: 0.65rem; color: #64748b;">By signing, I confirm payment has been received.</div>
                 </div>
             `;
 
@@ -217,7 +224,7 @@ async function printAllReceipts() {
                     <div class="receipt-details">
                         ${billsListHtml}
                         <div style="margin-top:0.3rem; font-weight:700; text-align:right; font-size:0.75rem; border-top:1px solid #ccc; padding-top:0.2rem;">
-                            Total: ₱${clientData.total.toLocaleString()}
+                            Total: ₱${formatNumber(clientData.total)}
                         </div>
                     </div>
                     ${signatureHtml}
@@ -293,9 +300,7 @@ async function printAllReceipts() {
         win.document.close();
 
         if (shouldMarkPaid && printMode === 'all') {
-            setTimeout(() => {
-                showSection('bills');
-            }, 2000);
+            setTimeout(() => { showSection('bills'); }, 2000);
         }
     } catch (err) {
         console.error(err);
@@ -378,6 +383,11 @@ function renderDashboard(container) {
             </div>
         </div>
     `;
+}
+
+function formatNumber(value, decimals = 2) {
+    if (value === undefined || value === null) return '0';
+    return parseFloat(value).toFixed(decimals);
 }
 
     let billsFilter = { search: '', status: 'all', category: 'all' };
@@ -833,7 +843,7 @@ function renderAddBill(container) {
         if (!template) return;
         try {
             const res = await apiGet(`/api/meters/last-reading?clientId=${clientId}&description=${encodeURIComponent(template.description)}`);
-            prevDisplay.innerHTML = `Previous reading: ${res.reading} units`;
+            prevDisplay.innerHTML = `Previous reading: ${formatNumber(res.reading)} units`;
         } catch(e) { prevDisplay.innerHTML = ''; }
     }
     meterTenant.addEventListener('change', () => { if (meterTemplateSelect.value) fetchLastReading(); });
@@ -885,7 +895,7 @@ function renderAddBill(container) {
         try {
             const res = await apiGet(`/api/meters/last-reading?clientId=${clientId}&description=${encodeURIComponent(description)}`);
             const reading = res.reading;
-            currentPrevInfo.innerHTML = `📌 Current previous reading for <strong>${escapeHtml(description)}</strong>: <span style="font-size:1.3rem; font-weight:700;">${reading} kWh</span>`;
+            currentPrevInfo.innerHTML = `📌 Current previous reading for <strong>${escapeHtml(description)}</strong>: <span style="font-size:1.3rem; font-weight:700;">${formatNumber(reading)} kWh</span>`;
             prevValueInput.value = reading;
         } catch(e) { currentPrevInfo.innerHTML = '❌ Failed to load current reading.'; }
     }
@@ -1344,30 +1354,29 @@ async function showSection(section) {
         setInterval(async () => { if (token) try { await fetch('/api/heartbeat', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }); } catch(e) {} }, 30000);
     };
 
-    window.showComputation = async (billId) => {
+  window.showComputation = async (billId) => {
     try {
         const bill = await apiGet(`/api/bills/${billId}`);
-        if (!bill) return;
-        // Build modal content
-        let rows = `
-            <div class="modal-overlay" id="computationModal">
-                <div class="modal-content">
-                    <h3>Bill Computation</h3>
-                    <table>
-                        <tr><td>Description:</td><td>${escapeHtml(bill.description)}</td></tr>
-                        <tr><td>Previous Reading:</td><td>${bill.previousReading ?? 'N/A'} kWh</td></tr>
-                        <tr><td>Current Reading:</td><td>${bill.currentReading ?? 'N/A'} kWh</td></tr>
-                        <tr><td>Consumption:</td><td>${bill.consumptionKwh ?? 'N/A'} kWh</td></tr>
-                        <tr><td>Rate per kWh:</td><td>₱${bill.ratePerKwh ?? '0'}</td></tr>
-                        <tr><td>Subtotal:</td><td>₱${((bill.consumptionKwh || 0) * (bill.ratePerKwh || 0)).toFixed(2)}</td></tr>
-                        <tr><td>Minimum Amount:</td><td>${bill.minimumAmount ? `₱${bill.minimumAmount}` : 'None'}</td></tr>
-                        <tr><td><strong>Final Amount:</strong></td><td><strong>₱${bill.amount.toFixed(2)}</strong></td></tr>
-                    </table>
-                    <button class="primary-btn" onclick="closeComputationModal()">Close</button>
-                </div>
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = 'computationModal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3>Bill Computation</h3>
+                <table style="width:100%;">
+                    <tr><td>Description:</td><td>${escapeHtml(bill.description)}</td></tr>
+                    <tr><td>Previous Reading:</td><td>${formatNumber(bill.previousReading)} kWh</td></tr>
+                    <tr><td>Current Reading:</td><td>${formatNumber(bill.currentReading)} kWh</td></tr>
+                    <tr><td>Consumption:</td><td>${formatNumber(bill.consumptionKwh)} kWh</td></tr>
+                    <tr><td>Rate per kWh:</td><td>₱${formatNumber(bill.ratePerKwh)}</td></tr>
+                    <tr><td>Subtotal:</td><td>₱${formatNumber(bill.consumptionKwh * bill.ratePerKwh)}</td></tr>
+                    <tr><td>Minimum Amount:</td><td>${bill.minimumAmount ? `₱${formatNumber(bill.minimumAmount)}` : 'None'}</td></tr>
+                    <tr><td style="font-weight:600;">Final Amount:</td><td style="font-weight:600;">₱${formatNumber(bill.amount)}</td></tr>
+                </table>
+                <button class="primary-btn" onclick="closeComputationModal()">Close</button>
             </div>
         `;
-        document.body.insertAdjacentHTML('beforeend', rows);
+        document.body.appendChild(modal);
     } catch(err) {
         alert('Failed to load computation details: ' + err.message);
     }
