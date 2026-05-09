@@ -26,6 +26,7 @@ const MeterReading = require('./models/MeterReading');
 const BillTemplate = require('./models/BillTemplate');
 const BillDefault = require('./models/BillDefault');
 const RetentionSetting = require('./models/RetentionSetting');
+const RecurringSchedule = require('./models/RecurringSchedule');
 const cron = require('node-cron');
 
 
@@ -101,6 +102,92 @@ io.on('connection', (socket) => {
 });
 
 // ==================== API Routes (ALL must be BEFORE the catch‑all) ====================
+
+app.get('/api/recurring-schedules', authMiddleware, async (req, res) => {
+    try {
+        const schedules = await RecurringSchedule.find().populate('clientId', 'name username room');
+        res.json(schedules);
+    } catch (err) {
+        console.error('GET /api/recurring-schedules error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST create or update recurring schedule (and generate current month bill)
+app.post('/api/recurring-schedules', authMiddleware, async (req, res) => {
+    try {
+        const { clientId, description, amount, dueDay } = req.body;
+        if (!clientId || !description || amount === undefined || !dueDay) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        
+        // Upsert schedule
+        const schedule = await RecurringSchedule.findOneAndUpdate(
+            { clientId, description },
+            { amount, dueDay, isActive: true },
+            { upsert: true, new: true }
+        );
+        
+        // Generate bill for current month if none exists
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const startOfMonth = new Date(year, month, 1);
+        const endOfMonth = new Date(year, month + 1, 0);
+        const existingBill = await Bill.findOne({
+            clientId,
+            description,
+            dueDate: { $gte: startOfMonth, $lte: endOfMonth }
+        });
+        
+        if (!existingBill) {
+            const dueDayAdjusted = Math.min(dueDay, new Date(year, month + 1, 0).getDate());
+            const billDueDate = new Date(year, month, dueDayAdjusted);
+            const newBill = new Bill({
+                clientId,
+                description,
+                amount,
+                dueDate: billDueDate,
+                status: 'pending'
+            });
+            await newBill.save();
+        }
+        
+        res.json(schedule);
+    } catch (err) {
+        console.error('POST /api/recurring-schedules error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE a recurring schedule
+app.delete('/api/recurring-schedules/:id', authMiddleware, async (req, res) => {
+    try {
+        await RecurringSchedule.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('DELETE /api/recurring-schedules/:id error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// In server.js
+app.post('/api/meters/set-previous-reading', authMiddleware, async (req, res) => {
+    try {
+        const { clientId, description, reading } = req.body;
+        if (!clientId || !description || reading === undefined) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+        // Save as a new reading (the latest)
+        const newReading = new MeterReading({ clientId, description, reading });
+        await newReading.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
 app.get('/api/settings/retention', authMiddleware, async (req, res) => {
     try {
         let setting = await RetentionSetting.findOne();
@@ -504,6 +591,55 @@ cron.schedule('0 2 * * 0', async () => {
         console.error('Auto cleanup error:', err);
     }
 });
+
+
+
+cron.schedule('0 1 1 * *', async () => {
+    console.log('Running monthly recurring bill generation...');
+    try {
+        const schedules = await RecurringSchedule.find({ isActive: true });
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const dueDate = new Date(year, month, 1); // will be adjusted to dueDay later
+
+        let createdCount = 0;
+        let duplicateSkipped = 0;
+
+        for (const schedule of schedules) {
+            // Check if bill for this client + description already exists this month
+            const startOfMonth = new Date(year, month, 1);
+            const endOfMonth = new Date(year, month + 1, 0);
+            const existing = await Bill.findOne({
+                clientId: schedule.clientId,
+                description: schedule.description,
+                dueDate: { $gte: startOfMonth, $lte: endOfMonth }
+            });
+            if (existing) {
+                duplicateSkipped++;
+                continue;
+            }
+
+            // Create the bill
+            const dueDay = Math.min(schedule.dueDay, new Date(year, month + 1, 0).getDate());
+            const billDueDate = new Date(year, month, dueDay);
+            const newBill = new Bill({
+                clientId: schedule.clientId,
+                description: schedule.description,
+                amount: schedule.amount,
+                dueDate: billDueDate,
+                status: 'pending'
+            });
+            await newBill.save();
+            createdCount++;
+        }
+        console.log(`Recurring bills created: ${createdCount}, duplicates skipped: ${duplicateSkipped}`);
+    } catch (err) {
+        console.error('Monthly recurring bill error:', err);
+    }
+});
+
+
         }
         server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
     })
