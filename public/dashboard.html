@@ -910,8 +910,7 @@ function renderAddBill(container) {
                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                     <input type="number" id="meterRate" placeholder="Rate per unit (₱)" step="0.01" required style="flex:1;">
                     <input type="number" id="meterMin" placeholder="Minimum amount (₱)" step="0.01" style="flex:1;">
-                    <input type="number" id="meterDueDay" placeholder="Due day (1-31)" min="1" max="31" required style="flex:1;">
-                </div>
+<input type="number" id="meterDueDay" placeholder="Due day (1-31)" min="1" max="31" required style="flex:1;" value="15">                </div>
                 <button type="submit" class="primary-btn">Generate Bill from Reading</button>
             </form>
             <div id="prevReadingDisplay" style="margin-top:0.5rem;"></div>
