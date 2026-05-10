@@ -32,7 +32,7 @@
     <div class="bottom-nav">
         <button class="nav-item" data-section="dashboard"><i class="fas fa-chart-simple"></i><span>Home</span></button>
         <button class="nav-item" data-section="bills"><i class="fas fa-receipt"></i><span>Bills</span></button>
-        <button class="nav-item" data-section="messages"><i class="fas fa-envelope"></i><span>Messages</span><span id="unreadBadge" class="badge" style="display:none;">0</span></button>
+        <!-- <button class="nav-item" data-section="messages"><i class="fas fa-envelope"></i><span>Messages</span><span id="unreadBadge" class="badge" style="display:none;">0</span></button> -->
         <button class="nav-item" id="adminNavBtn" style="display:none;" data-section="users"><i class="fas fa-users"></i><span>Tenants</span></button>
         <button class="nav-item" id="specialNavBtn" style="display:none;" data-section="addBill"><i class="fas fa-plus-circle"></i><span>Add Bill</span></button>
         <button class="nav-item" id="logoutBtn"><i class="fas fa-sign-out-alt"></i><span>Exit</span></button>
@@ -628,10 +628,10 @@ function renderAddBill(container) {
     const tenantOptions = allClients.filter(c => c.role === 'client').map(c => `<option value="${c._id}">${c.name} (Rm ${c.room})</option>`).join('');
     const today = new Date();
     const defaultDueDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-15`;
-    // Two‑column layout with a single tenant selector in left column
+
     container.innerHTML = `
         <div style="display: flex; flex-wrap: wrap; gap: 1.5rem;">
-            <!-- Left column: tenant selection + monthly preview -->
+            <!-- Left column -->
             <div style="flex: 1.2; min-width: 260px;">
                 <div class="card">
                     <div class="card-header">📋 Monthly Preview</div>
@@ -651,21 +651,21 @@ function renderAddBill(container) {
                     </div>
                 </div>
             </div>
-            <!-- Right column: forms (no tenant selects) -->
+            <!-- Right column -->
             <div style="flex: 2; min-width: 320px;">
-               <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 2px solid #eef2f6; padding-bottom: 0.5rem;">
-    <button class="tab-btn active" data-tab="meter">⚡ Meter Reading</button>
-    <button class="tab-btn" data-tab="manual">📝 Manual Bill</button>
-    ${(currentUser.role === 'admin' || currentUser.role === 'special') ? `<button class="tab-btn" data-tab="recurring">🔄 Recurring Bill</button>` : ''}
-</div>
-                <div id="tab-meter" class="tab-panel active" "></div>
-                <div id="tab-manual" class="tab-panel style="display:none; "></div>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 2px solid #eef2f6; padding-bottom: 0.5rem;">
+                    <button class="tab-btn active" data-tab="meter">⚡ Meter Reading</button>
+                    <button class="tab-btn" data-tab="manual">📝 Manual Bill</button>
+                    ${(currentUser.role === 'admin' || currentUser.role === 'special') ? `<button class="tab-btn" data-tab="recurring">🔄 Recurring Bill</button>` : ''}
+                </div>
+                <div id="tab-meter" class="tab-panel active"></div>
+                <div id="tab-manual" class="tab-panel" style="display:none;"></div>
                 <div id="tab-recurring" class="tab-panel" style="display:none;"></div>
             </div>
         </div>
     `;
 
-    // ========== SINGLE TENANT SELECTOR & PREVIEW ==========
+    // ========== LEFT PREVIEW LOGIC ==========
     const tenantSelect = document.getElementById('selectedTenant');
     const previewMonth = document.getElementById('previewMonth');
     const previewContent = document.getElementById('previewContent');
@@ -713,12 +713,9 @@ function renderAddBill(container) {
             <body>${previewContent.innerHTML}<script>window.print();<\/script></body>
         `);
     });
+    function refreshPreview() { updatePreview(); }
 
-    function refreshPreview() {
-        updatePreview();
-    }
-
-    // ========== MANUAL BILL PANEL (no tenant select, uses global selectedTenant) ==========
+    // ========== MANUAL BILL PANEL ==========
     const manualPanel = document.getElementById('tab-manual');
     manualPanel.innerHTML = `
         <div class="card">
@@ -731,7 +728,8 @@ function renderAddBill(container) {
                         <input type="number" id="amountSimple" placeholder="Amount (₱)" step="0.01" required style="flex:1;">
                         <button type="button" id="clearDefaultBtn" class="small" style="background:#fee2e2; color:#b91c1c; display: none;" title="Remove saved default">✖</button>
                     </div>
-                    <input type="date" id="dueDateSimple" value="${defaultDueDate}" required>                    <button class="primary-btn" type="submit" id="createBillBtn">Create bill</button>
+                    <input type="date" id="dueDateSimple" value="${defaultDueDate}" required>
+                    <button class="primary-btn" type="submit" id="createBillBtn">Create bill</button>
                 </form>
                 <div id="defaultHint" style="font-size:0.75rem; color:#6b7280; margin-top:0.5rem;"></div>
             </div>
@@ -756,8 +754,8 @@ function renderAddBill(container) {
         const description = descInput.value.trim();
         if (!clientId || !description) { clearDefaultBtn.style.display = 'none'; defaultHint.innerHTML = ''; return; }
         const lastBill = allBills.filter(b => (b.clientId?._id === clientId || b.clientId === clientId) && b.description === description).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-        if (lastBill) { amountInput.value = lastBill.amount; clearDefaultBtn.style.display = 'inline-block'; defaultHint.innerHTML = `💡 Last used amount for "${description}" was ${formatMoney(lastBill.amount)}.`; return; }
-        try { const data = await apiGet(`/api/bill-defaults/${clientId}/${encodeURIComponent(description)}`); if (data.defaultAmount !== null && data.defaultAmount !== undefined) { amountInput.value = data.defaultAmount; clearDefaultBtn.style.display = 'inline-block'; defaultHint.innerHTML = `💡 Default amount for "${description}" is ${formatMoney(data.defaultAmount)}.`; } else { clearDefaultBtn.style.display = 'none'; defaultHint.innerHTML = ''; } } catch(e) { console.warn(e); }
+        if (lastBill) { amountInput.value = lastBill.amount; clearDefaultBtn.style.display = 'inline-block'; defaultHint.innerHTML = `💡 Last used amount for "${description}" was ₱${formatNumber(lastBill.amount)}.`; return; }
+        try { const data = await apiGet(`/api/bill-defaults/${clientId}/${encodeURIComponent(description)}`); if (data.defaultAmount !== null && data.defaultAmount !== undefined) { amountInput.value = data.defaultAmount; clearDefaultBtn.style.display = 'inline-block'; defaultHint.innerHTML = `💡 Default amount for "${description}" is ₱${formatNumber(data.defaultAmount)}.`; } else { clearDefaultBtn.style.display = 'none'; defaultHint.innerHTML = ''; } } catch(e) { console.warn(e); }
     }
     tenantSelect.addEventListener('change', () => {
         updateDescSuggestions(tenantSelect.value);
@@ -799,7 +797,6 @@ function renderAddBill(container) {
             await loadData();
             descInput.value = '';
             amountInput.value = '';
-            // Reset due date to 15th of current month
             const now = new Date();
             const nextDefault = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-15`;
             document.getElementById('dueDateSimple').value = nextDefault;
@@ -810,11 +807,10 @@ function renderAddBill(container) {
         } catch(err) { alert(err.message); }
         finally { btn.innerHTML = original; btn.disabled = false; }
     });
-    // initial load
     updateDescSuggestions(tenantSelect.value);
     fetchDefaultAmount();
 
-    // ========== RECURRING SCHEDULE PANEL (no tenant select, uses global selectedTenant) ==========
+    // ========== RECURRING BILL (admin only) ==========
     if (currentUser.role === 'admin' || currentUser.role === 'special') {
         const recurringPanel = document.getElementById('tab-recurring');
         recurringPanel.innerHTML = `
@@ -872,12 +868,14 @@ function renderAddBill(container) {
         document.getElementById('recurringForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
             const clientId = tenantSelect.value;
+            const initialMonth = previewMonth.value;
             if (!clientId) { alert('Select a tenant first.'); return; }
             const payload = {
                 clientId: clientId,
                 description: document.getElementById('recurringDesc').value.trim(),
                 amount: parseFloat(document.getElementById('recurringAmount').value),
-                dueDay: parseInt(document.getElementById('recurringDueDay').value)
+                dueDay: parseInt(document.getElementById('recurringDueDay').value),
+                initialMonth: initialMonth
             };
             if (!payload.description || isNaN(payload.amount) || !payload.dueDay) { alert('Fill all fields'); return; }
             try {
@@ -897,57 +895,57 @@ function renderAddBill(container) {
         if (recurringTabBtn) recurringTabBtn.style.display = 'none';
     }
 
-    // ========== METER READING PANEL (no tenant select, uses global selectedTenant) ==========
+    // ========== METER READING PANEL ==========
     const meterPanel = document.getElementById('tab-meter');
     meterPanel.innerHTML = `
-    <div class="card">
-        <div class="card-header">⚡ Generate Bill from Meter Reading</div>
-        <div class="card-body">
-            <form id="meterBillForm">
-                <div style="margin-bottom:0.5rem;"><strong>For tenant: <span id="meterTenantName">${allClients.find(c=>c._id===tenantSelect.value)?.name || ''}</span></strong></div>
-                <select id="meterTemplateSelect" required><option value="">-- Select template --</option></select>
-                <input type="number" id="meterReading" placeholder="Current Reading (units)" step="0.01" required>
-                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-                    <input type="number" id="meterRate" placeholder="Rate per unit (₱)" step="0.01" required style="flex:1;">
-                    <input type="number" id="meterMin" placeholder="Minimum amount (₱)" step="0.01" style="flex:1;">
-<input type="number" id="meterDueDay" placeholder="Due day (1-31)" min="1" max="31" required style="flex:1;" value="15">                </div>
-                <button type="submit" class="primary-btn">Generate Bill from Reading</button>
-            </form>
-            <div id="prevReadingDisplay" style="margin-top:0.5rem;"></div>
+        <div class="card">
+            <div class="card-header">⚡ Generate Bill from Meter Reading</div>
+            <div class="card-body">
+                <form id="meterBillForm">
+                    <div style="margin-bottom:0.5rem;"><strong>For tenant: <span id="meterTenantName">${allClients.find(c=>c._id===tenantSelect.value)?.name || ''}</span></strong></div>
+                    <select id="meterTemplateSelect" required><option value="">-- Select template --</option></select>
+                    <input type="number" id="meterReading" placeholder="Current Reading (units)" step="0.01" required>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <input type="number" id="meterRate" placeholder="Rate per unit (₱)" step="0.01" required style="flex:1;">
+                        <input type="number" id="meterMin" placeholder="Minimum amount (₱)" step="0.01" style="flex:1;">
+                        <input type="number" id="meterDueDay" placeholder="Due day (1-31)" min="1" max="31" required style="flex:1;" value="15">
+                    </div>
+                    <button type="submit" class="primary-btn">Generate Bill from Reading</button>
+                </form>
+                <div id="prevReadingDisplay" style="margin-top:0.5rem;"></div>
+            </div>
         </div>
-    </div>
-    <div class="card">
-        <div class="card-header">📊 Previous Reading (editable)</div>
-        <div class="card-body">
-            <div style="display:flex; gap:1rem; flex-wrap:wrap;">
-                <div style="flex:2;">
-                    <input type="text" id="prevReadingDesc" placeholder="Description" list="prevDescList">
-                    <!-- ✅ Missing datalist added here -->
-                    <datalist id="prevDescList"></datalist>
+        <div class="card">
+            <div class="card-header">📊 Previous Reading (editable)</div>
+            <div class="card-body">
+                <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                    <div style="flex:2;">
+                        <input type="text" id="prevReadingDesc" placeholder="Description" list="prevDescList">
+                        <datalist id="prevDescList"></datalist>
+                    </div>
+                    <div style="flex:1;"><input type="number" id="prevReadingValue" step="0.01" placeholder="Reading"></div>
+                    <div><button id="updatePrevReadingBtn" class="small">Update</button></div>
                 </div>
-                <div style="flex:1;"><input type="number" id="prevReadingValue" step="0.01" placeholder="Reading"></div>
-                <div><button id="updatePrevReadingBtn" class="small">Update</button></div>
+                <div id="currentPrevReadingInfo" style="margin-top:0.5rem;"></div>
             </div>
-            <div id="currentPrevReadingInfo" style="margin-top:0.5rem;"></div>
         </div>
-    </div>
-    <div class="card">
-        <div class="card-header">📄 Bill Templates (global)</div>
-        <div class="card-body">
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:0.5rem; margin-bottom:1rem;">
-                <input type="text" id="templateName" placeholder="Name" required>
-                <input type="text" id="templateDesc" placeholder="Description" required>
-                <input type="number" id="templateRate" placeholder="Rate/unit" step="0.01" required>
-                <input type="number" id="templateMin" placeholder="Min amount" step="0.01">
-                <input type="number" id="templateDueDay" placeholder="Due day" min="1" max="31" required>
-                <button id="saveTemplateBtn" class="primary-btn">Save</button>
+        <div class="card">
+            <div class="card-header">📄 Bill Templates (global)</div>
+            <div class="card-body">
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:0.5rem; margin-bottom:1rem;">
+                    <input type="text" id="templateName" placeholder="Name" required>
+                    <input type="text" id="templateDesc" placeholder="Description" required>
+                    <input type="number" id="templateRate" placeholder="Rate/unit" step="0.01" required>
+                    <input type="number" id="templateMin" placeholder="Min amount" step="0.01">
+                    <input type="number" id="templateDueDay" placeholder="Due day" min="1" max="31" required>
+                    <button id="saveTemplateBtn" class="primary-btn">Save</button>
+                </div>
+                <div id="templatesList"></div>
             </div>
-            <div id="templatesList"></div>
         </div>
-    </div>
-`;
+    `;
 
-    // Global templates (same as before)
+    // Global templates
     let globalTemplates = [];
     const templatesListDiv = document.getElementById('templatesList');
     async function loadGlobalTemplates() { try { globalTemplates = await apiGet('/api/bill-templates'); renderTemplatesList(); updateTemplateDropdown(); } catch(e) { console.warn(e); } }
@@ -1018,45 +1016,53 @@ function renderAddBill(container) {
             } catch(e) { prevDisplay.innerHTML = ''; }
         }
     }
-document.getElementById('meterBillForm')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = e.target.querySelector('button[type="submit"]');
-    const original = btn.innerText;
-    btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
-    btn.disabled = true;
-    try {
-        const selectedTemplate = globalTemplates.find(t => t._id === meterTemplateSelect.value);
-        if (!selectedTemplate) throw new Error('Select template');
 
-        // Get selected month from left preview
-        const [year, month] = previewMonth.value.split('-');
-        if (!year || !month) throw new Error('Invalid month selection');
-        const dueDay = parseInt(meterDueDay.value);
-        const dueDate = new Date(parseInt(year), parseInt(month) - 1, dueDay);
-        
-        // Create description with month name
-        const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-        const description = `${selectedTemplate.description} - ${monthName}`;
+    // *******************************************************************
+    // CORRECTED METER READING SUBMISSION (sends targetMonth)
+    // *******************************************************************
+    document.getElementById('meterBillForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const original = btn.innerText;
+        btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
+        btn.disabled = true;
+        try {
+            const selectedTemplate = globalTemplates.find(t => t._id === meterTemplateSelect.value);
+            if (!selectedTemplate) throw new Error('Select template');
 
-        const payload = {
-            clientId: tenantSelect.value,
-            description: description,
-            currentReading: parseFloat(meterReadingInput.value),
-            ratePerKwh: parseFloat(meterRate.value),
-            minimumAmount: parseFloat(meterMin.value) || null,
-            dueDate: dueDate.toISOString().split('T')[0]   // YYYY-MM-DD
-        };
-        await apiPost('/api/meters/generate-bill', payload);
-        alert('✅ Bill generated!');
-        meterReadingInput.value = '';
-        await loadData();
-        refreshPreview();
-        if (meterTemplateSelect.value) fetchLastReading();
-    } catch(err) { alert(err.message); }
-    finally { btn.innerHTML = original; btn.disabled = false; }
-});
+            const [year, month] = previewMonth.value.split('-');
+            if (!year || !month) throw new Error('Invalid month selection');
+            const dueDay = parseInt(meterDueDay.value);
+            if (isNaN(dueDay)) throw new Error('Due day required');
+            // Build due date from selected month + dueDay
+            const dueDate = new Date(parseInt(year), parseInt(month) - 1, dueDay);
+            
+            const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+            const billDescription = `${selectedTemplate.description} - ${monthName}`;
+            const meterDescription = selectedTemplate.description;   // ← fixed, no month
+            const targetMonth = previewMonth.value; // send selected month for previous reading
 
-    // Previous reading editor
+            const payload = {
+                clientId: tenantSelect.value,
+                billDescription: billDescription,      // for the bill
+                meterDescription: meterDescription,    // for the reading lookup
+                currentReading: parseFloat(meterReadingInput.value),
+                ratePerKwh: parseFloat(meterRate.value),
+                minimumAmount: parseFloat(meterMin.value) || null,
+                dueDate: dueDate.toISOString().split('T')[0],
+                targetMonth: targetMonth
+};
+            await apiPost('/api/meters/generate-bill', payload);
+            alert('✅ Bill generated!');
+            meterReadingInput.value = '';
+            await loadData();
+            refreshPreview();
+            if (meterTemplateSelect.value) fetchLastReading();
+        } catch(err) { alert(err.message); }
+        finally { btn.innerHTML = original; btn.disabled = false; }
+    });
+
+    // Previous reading editor (unchanged)
     const prevDescInput = document.getElementById('prevReadingDesc');
     const prevValueInput = document.getElementById('prevReadingValue');
     const updatePrevBtn = document.getElementById('updatePrevReadingBtn');
@@ -1108,8 +1114,8 @@ document.getElementById('meterBillForm')?.addEventListener('submit', async (e) =
         });
     });
 
-    // Initial preview and tenant name updates
-    tenantSelect.dispatchEvent(new Event('change')); // triggers preview and other syncs
+    // Initial preview update
+    tenantSelect.dispatchEvent(new Event('change'));
     updatePreview();
 }    // ==================== TENANTS (USERS) ====================
     function renderUsers(container) {
