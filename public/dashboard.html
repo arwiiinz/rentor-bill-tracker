@@ -190,44 +190,49 @@ async function printAllReceipts() {
                     const current = bill.currentReading ?? 0;
                     const rate = bill.ratePerKwh;
                     const subtotalNum = consumption * rate;
+                    // Break computation into multiple lines
                     computationHtml = `
-                        <div style="font-size:0.65rem; color:#4b5563; margin-top:0.1rem; white-space:nowrap; overflow-x:auto;">
-                            Prev: ${formatNumber(previous)} | Cur: ${formatNumber(current)} | Cons: ${formatNumber(consumption)} @ ₱${formatNumber(rate)} | Sub: ₱${formatNumber(subtotalNum)}
+                        <div style="font-size:0.75rem; color:#4b5563; margin-top:0.2rem; line-height:1.3;">
+                            <div>Prev: ${formatNumber(previous)} kWh</div>
+                            <div>Curr: ${formatNumber(current)} kWh</div>
+                            <div>Consumption: ${formatNumber(consumption)} kWh</div>
+                            <div>Rate: ₱${formatNumber(rate)} / kWh</div>
+                            <div>Subtotal: ₱${formatNumber(subtotalNum)}</div>
                         </div>
                     `;
                 }
                 billsListHtml += `
-                    <div style="margin-bottom:0.4rem; border-bottom:1px solid #eef2f6; padding-bottom:0.3rem;">
-                        <div style="font-weight:600; font-size:0.8rem;">${escapeHtml(bill.description)}</div>
-                        <div style="font-size:0.7rem;">Due: ${dueDate}</div>
-                        <div style="font-size:0.8rem;">Amount: ₱${formatNumber(bill.amount)}</div>
+                    <div style="margin-bottom:0.7rem; border-bottom:1px solid #eef2f6; padding-bottom:0.5rem;">
+                        <div style="font-weight:800; font-size:1rem;">${escapeHtml(bill.description)}</div>
+                        <div style="font-size:0.85rem; margin-top:0.2rem;">Due: ${dueDate}</div>
+                        <div style="font-size:1rem; font-weight:700; margin-top:0.2rem;">Amount: ₱${formatNumber(bill.amount)}</div>
                         ${computationHtml}
                     </div>
                 `;
             }
             const signatureHtml = `
-                <div style="margin-top: 0.5rem; padding-top: 0.3rem; border-top: 1px dashed #ccc;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-                        <div style="font-size: 0.7rem;">Admin signature: ______________________</div>
-                        <div style="font-size: 0.7rem;">Date: _____________</div>
+                <div style="margin-top: 0.8rem; padding-top: 0.5rem; border-top: 1px dashed #aaa;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; font-size:0.85rem;">
+                        <div>Admin signature: ______________________</div>
+                        <div>Date: _____________</div>
                     </div>
-                    <div style="margin-top: 0.2rem; font-size: 0.65rem; color: #64748b;">By signing, I confirm payment has been received.</div>
+                    <div style="margin-top: 0.3rem; font-size: 0.75rem; color: #64748b;">By signing, I confirm payment has been received.</div>
                 </div>
             `;
 
             allCards.push(`
                 <div class="receipt-card">
-                    <div class="receipt-header">
-                        🧾 ${escapeHtml(clientData.name)} <span style="font-size:0.6rem;">(Rm ${escapeHtml(clientData.room)}, ${escapeHtml(clientData.level)})</span>
+                    <div class="receipt-header" style="font-size:1rem;">
+                        🧾 ${escapeHtml(clientData.name)} <span style="font-size:0.8rem;">(Rm ${escapeHtml(clientData.room)}, ${escapeHtml(clientData.level)})</span>
                     </div>
-                    <div class="receipt-details">
+                    <div class="receipt-details" style="font-size:0.9rem; line-height:1.4;">
                         ${billsListHtml}
-                        <div style="margin-top:0.3rem; font-weight:700; text-align:right; font-size:0.75rem; border-top:1px solid #ccc; padding-top:0.2rem;">
+                        <div style="margin-top:0.6rem; font-weight:800; text-align:right; font-size:1rem; border-top:1px solid #ccc; padding-top:0.4rem;">
                             Total: ₱${formatNumber(clientData.total)}
                         </div>
                     </div>
                     ${signatureHtml}
-                    <div class="footer">Rentor System • Official Receipt</div>
+                    <div class="footer" style="font-size:0.75rem;">Rentor System • Official Receipt</div>
                 </div>
             `);
         }
@@ -237,7 +242,7 @@ async function printAllReceipts() {
             return;
         }
 
-        const cardsPerPage = 4;   // 2 cols × 2 rows = 4
+        const cardsPerPage = 4;   // 2 cols × 2 rows
         let pagesHtml = '';
         for (let i = 0; i < allCards.length; i += cardsPerPage) {
             let pageCards = allCards.slice(i, i + cardsPerPage);
@@ -285,7 +290,7 @@ async function printAllReceipts() {
         .receipt-card {
             border: 1px solid #9ca3af;
             border-radius: 8px;
-            padding: 0.6rem;
+            padding: 0.7rem;
             background: white;
             display: flex;
             flex-direction: column;
@@ -299,24 +304,24 @@ async function printAllReceipts() {
         }
         .receipt-header {
             font-weight: 700;
-            font-size: 0.85rem;
+            font-size: 1rem;
             border-bottom: 1px dotted #ccc;
-            margin-bottom: 0.2rem;
-            padding-bottom: 0.1rem;
+            margin-bottom: 0.3rem;
+            padding-bottom: 0.2rem;
             white-space: nowrap;
             overflow-x: auto;
         }
         .receipt-details {
-            font-size: 0.7rem;
-            line-height: 1.2;
-            margin: 0.2rem 0;
+            font-size: 0.85rem;
+            line-height: 1.3;
+            margin: 0.3rem 0;
             flex: 1;
             overflow-y: auto;
         }
         .footer {
-            font-size: 0.55rem;
+            font-size: 0.7rem;
             text-align: center;
-            margin-top: 0.2rem;
+            margin-top: 0.3rem;
             color: #64748b;
         }
         @media print {
