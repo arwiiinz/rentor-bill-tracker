@@ -116,50 +116,47 @@ app.get('/api/recurring-schedules', authMiddleware, async (req, res) => {
 // POST create or update recurring schedule (and generate current month bill)
 app.post('/api/recurring-schedules', authMiddleware, async (req, res) => {
     try {
-        const { clientId, description, amount, dueDay } = req.body;
-        if (!clientId || !description || amount === undefined || !dueDay) {
+        const { clientId, description, amount, dueDay, initialMonth } = req.body;
+        if (!clientId || !description || !amount || !dueDay || !initialMonth) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
+
+        // 1. Save the recurring schedule
+        const schedule = new RecurringSchedule({ clientId, description, amount, dueDay, initialMonth });
+        await schedule.save();
+
+        // 2. Create initial bill for the selected month (if not already exists)
+        const [year, month] = initialMonth.split('-');
+        if (!year || !month) throw new Error('Invalid initialMonth format');
+
+        // Build due date: first day of month + (dueDay - 1) days
+        const dueDate = new Date(parseInt(year), parseInt(month) - 1, dueDay);
         
-        // Upsert schedule
-        const schedule = await RecurringSchedule.findOneAndUpdate(
-            { clientId, description },
-            { amount, dueDay, isActive: true },
-            { upsert: true, new: true }
-        );
-        
-        // Generate bill for current month if none exists
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth();
-        const startOfMonth = new Date(year, month, 1);
-        const endOfMonth = new Date(year, month + 1, 0);
+        // Check if bill already exists for this client, description, and month
+        const monthStart = new Date(parseInt(year), parseInt(month) - 1, 1);
+        const monthEnd = new Date(parseInt(year), parseInt(month), 0);
         const existingBill = await Bill.findOne({
             clientId,
             description,
-            dueDate: { $gte: startOfMonth, $lte: endOfMonth }
+            dueDate: { $gte: monthStart, $lt: monthEnd }
         });
-        
+
         if (!existingBill) {
-            const dueDayAdjusted = Math.min(dueDay, new Date(year, month + 1, 0).getDate());
-            const billDueDate = new Date(year, month, dueDayAdjusted);
             const newBill = new Bill({
                 clientId,
                 description,
                 amount,
-                dueDate: billDueDate,
+                dueDate,
                 status: 'pending'
             });
             await newBill.save();
         }
-        
-        res.json(schedule);
+
+        res.status(201).json({ schedule, initialBillCreated: !existingBill });
     } catch (err) {
-        console.error('POST /api/recurring-schedules error:', err);
         res.status(500).json({ error: err.message });
     }
 });
-
 // DELETE a recurring schedule
 app.delete('/api/recurring-schedules/:id', authMiddleware, async (req, res) => {
     try {
@@ -467,22 +464,28 @@ app.get('/api/meters/last-reading', authMiddleware, async (req, res) => {
 
 app.post('/api/meters/generate-bill', authMiddleware, async (req, res) => {
     try {
-        const { clientId, description, currentReading, ratePerKwh, minimumAmount, dueDate } = req.body;
-        if (!clientId || !description || currentReading === undefined || !ratePerKwh || !dueDate) {
+        const { clientId, billDescription, meterDescription, currentReading, ratePerKwh, minimumAmount, dueDate } = req.body;
+        if (!clientId || !billDescription || !meterDescription || currentReading === undefined || !ratePerKwh || !dueDate) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        const lastReadingDoc = await MeterReading.findOne({ clientId, description }).sort({ date: -1 });
+        // Find last reading using the fixed meterDescription (e.g., "Electricity")
+        const lastReadingDoc = await MeterReading.findOne({ clientId, description: meterDescription })
+            .sort({ date: -1 });
         const previousReading = lastReadingDoc ? lastReadingDoc.reading : 0;
+
         const consumption = currentReading - previousReading;
-        if (consumption < 0) return res.status(400).json({ error: 'Current reading cannot be less than previous' });
+        if (consumption < 0) {
+            return res.status(400).json({ error: 'Current reading cannot be less than previous' });
+        }
 
         let amount = consumption * ratePerKwh;
         if (minimumAmount && amount < minimumAmount) amount = minimumAmount;
 
+        // Save the bill with the month‑specific billDescription
         const newBill = new Bill({
             clientId,
-            description,
+            description: billDescription,
             amount,
             dueDate: new Date(dueDate),
             status: 'pending',
@@ -494,7 +497,8 @@ app.post('/api/meters/generate-bill', authMiddleware, async (req, res) => {
         });
         await newBill.save();
 
-        const newReading = new MeterReading({ clientId, description, reading: currentReading });
+        // Save the new reading under the fixed meterDescription
+        const newReading = new MeterReading({ clientId, description: meterDescription, reading: currentReading });
         await newReading.save();
 
         res.status(201).json({ bill: newBill, consumption, previousReading });
@@ -502,7 +506,6 @@ app.post('/api/meters/generate-bill', authMiddleware, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
 // ===== General Routers (mount after individual routes) =====
 const messageRoutes = require('./routes/messages');
 const authRoutes = require('./routes/auth');
