@@ -183,7 +183,6 @@ async function printAllReceipts() {
             let billsListHtml = '';
             for (const bill of clientData.bills) {
                 const dueDate = formatDate(bill.dueDate);
-                // No paid date displayed at all
                 let computationHtml = '';
                 if (bill.ratePerKwh !== undefined && bill.ratePerKwh !== null) {
                     const consumption = bill.consumptionKwh ?? 0;
@@ -238,7 +237,7 @@ async function printAllReceipts() {
             return;
         }
 
-        const cardsPerPage = 8;
+        const cardsPerPage = 4;   // 2 cols × 2 rows = 4
         let pagesHtml = '';
         for (let i = 0; i < allCards.length; i += cardsPerPage) {
             let pageCards = allCards.slice(i, i + cardsPerPage);
@@ -271,15 +270,55 @@ async function printAllReceipts() {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { height: 100%; margin: 0; padding: 0; }
         body { font-family: 'Inter', sans-serif; background: white; display: flex; flex-direction: column; }
-        @page { size: landscape; margin: 0.8cm; }
+        @page { size: portrait; margin: 0.8cm; }
         .page-container { page-break-after: always; height: 100%; display: flex; flex-direction: column; }
         .page-container:last-child { page-break-after: auto; }
-        .receipt-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 1fr; gap: 0.4rem; flex: 1; min-height: 0; height: 100%; }
-        .receipt-card { border: 1px solid #9ca3af; border-radius: 4px; padding: 0.5rem; background: white; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; height: 100%; }
-        .empty-card { border: 1px dashed #d1d5db; background: #f9fafb; }
-        .receipt-header { font-weight: 700; font-size: 0.85rem; border-bottom: 1px dotted #ccc; margin-bottom: 0.2rem; padding-bottom: 0.1rem; white-space: nowrap; overflow-x: auto; }
-        .receipt-details { font-size: 0.7rem; line-height: 1.2; margin: 0.2rem 0; flex: 1; overflow-y: auto; }
-        .footer { font-size: 0.55rem; text-align: center; margin-top: 0.2rem; color: #64748b; }
+        .receipt-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-auto-rows: 1fr;
+            gap: 0.6rem;
+            flex: 1;
+            min-height: 0;
+            height: 100%;
+        }
+        .receipt-card {
+            border: 1px solid #9ca3af;
+            border-radius: 8px;
+            padding: 0.6rem;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            height: 100%;
+        }
+        .empty-card {
+            border: 1px dashed #d1d5db;
+            background: #f9fafb;
+        }
+        .receipt-header {
+            font-weight: 700;
+            font-size: 0.85rem;
+            border-bottom: 1px dotted #ccc;
+            margin-bottom: 0.2rem;
+            padding-bottom: 0.1rem;
+            white-space: nowrap;
+            overflow-x: auto;
+        }
+        .receipt-details {
+            font-size: 0.7rem;
+            line-height: 1.2;
+            margin: 0.2rem 0;
+            flex: 1;
+            overflow-y: auto;
+        }
+        .footer {
+            font-size: 0.55rem;
+            text-align: center;
+            margin-top: 0.2rem;
+            color: #64748b;
+        }
         @media print {
             .receipt-card { border: 1px solid #aaa; }
             .empty-card { border: 1px solid #ddd; background: white; }
