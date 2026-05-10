@@ -1019,32 +1019,43 @@ function renderAddBill(container) {
             } catch(e) { prevDisplay.innerHTML = ''; }
         }
     }
-    document.getElementById('meterBillForm')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = e.target.querySelector('button[type="submit"]');
-        const original = btn.innerText;
-        btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
-        btn.disabled = true;
-        try {
-            const selectedTemplate = globalTemplates.find(t => t._id === meterTemplateSelect.value);
-            if (!selectedTemplate) throw new Error('Select template');
-            const payload = {
-                clientId: tenantSelect.value,
-                description: selectedTemplate.description,
-                currentReading: parseFloat(meterReadingInput.value),
-                ratePerKwh: parseFloat(meterRate.value),
-                minimumAmount: parseFloat(meterMin.value) || null,
-                dueDay: parseInt(meterDueDay.value)
-            };
-            await apiPost('/api/meters/generate-bill', payload);
-            alert('✅ Bill generated!');
-            meterReadingInput.value = '';
-            await loadData();
-            refreshPreview();
-            if (meterTemplateSelect.value) fetchLastReading();
-        } catch(err) { alert(err.message); }
-        finally { btn.innerHTML = original; btn.disabled = false; }
-    });
+document.getElementById('meterBillForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const original = btn.innerText;
+    btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
+    btn.disabled = true;
+    try {
+        const selectedTemplate = globalTemplates.find(t => t._id === meterTemplateSelect.value);
+        if (!selectedTemplate) throw new Error('Select template');
+
+        // Get selected month from left preview
+        const [year, month] = previewMonth.value.split('-');
+        if (!year || !month) throw new Error('Invalid month selection');
+        const dueDay = parseInt(meterDueDay.value);
+        const dueDate = new Date(parseInt(year), parseInt(month) - 1, dueDay);
+        
+        // Create description with month name
+        const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+        const description = `${selectedTemplate.description} - ${monthName}`;
+
+        const payload = {
+            clientId: tenantSelect.value,
+            description: description,
+            currentReading: parseFloat(meterReadingInput.value),
+            ratePerKwh: parseFloat(meterRate.value),
+            minimumAmount: parseFloat(meterMin.value) || null,
+            dueDate: dueDate.toISOString().split('T')[0]   // YYYY-MM-DD
+        };
+        await apiPost('/api/meters/generate-bill', payload);
+        alert('✅ Bill generated!');
+        meterReadingInput.value = '';
+        await loadData();
+        refreshPreview();
+        if (meterTemplateSelect.value) fetchLastReading();
+    } catch(err) { alert(err.message); }
+    finally { btn.innerHTML = original; btn.disabled = false; }
+});
 
     // Previous reading editor
     const prevDescInput = document.getElementById('prevReadingDesc');
