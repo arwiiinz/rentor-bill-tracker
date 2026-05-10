@@ -6,7 +6,9 @@ const recurringScheduleSchema = new mongoose.Schema({
     amount: { type: Number, required: true },
     dueDay: { type: Number, required: true, min: 1, max: 31 },
     isActive: { type: Boolean, default: true },
-    createdAt: { type: Date, default: Date.now }
+    createdAt: { type: Date, default: Date.now },
+      initialMonth: { type: String, required: true },
+    
 });
 
 // Unique per client+description (only one active schedule per combo)
