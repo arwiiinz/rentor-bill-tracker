@@ -467,23 +467,24 @@ app.get('/api/meters/last-reading', authMiddleware, async (req, res) => {
 
 app.post('/api/meters/generate-bill', authMiddleware, async (req, res) => {
     try {
-        const { clientId, description, currentReading, ratePerKwh, minimumAmount, dueDay } = req.body;
-        if (!clientId || !description || currentReading === undefined || !ratePerKwh || !dueDay) {
+        const { clientId, description, currentReading, ratePerKwh, minimumAmount, dueDate } = req.body;
+        if (!clientId || !description || currentReading === undefined || !ratePerKwh || !dueDate) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
+
         const lastReadingDoc = await MeterReading.findOne({ clientId, description }).sort({ date: -1 });
         const previousReading = lastReadingDoc ? lastReadingDoc.reading : 0;
         const consumption = currentReading - previousReading;
         if (consumption < 0) return res.status(400).json({ error: 'Current reading cannot be less than previous' });
+
         let amount = consumption * ratePerKwh;
         if (minimumAmount && amount < minimumAmount) amount = minimumAmount;
-        const now = new Date();
-        const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay);
+
         const newBill = new Bill({
             clientId,
-            description: `${description} - ${now.toLocaleString('default', { month: 'long', year: 'numeric' })}`,
+            description,
             amount,
-            dueDate,
+            dueDate: new Date(dueDate),
             status: 'pending',
             previousReading,
             currentReading,
@@ -492,8 +493,10 @@ app.post('/api/meters/generate-bill', authMiddleware, async (req, res) => {
             minimumAmount: minimumAmount || null
         });
         await newBill.save();
+
         const newReading = new MeterReading({ clientId, description, reading: currentReading });
         await newReading.save();
+
         res.status(201).json({ bill: newBill, consumption, previousReading });
     } catch (err) {
         res.status(500).json({ error: err.message });
