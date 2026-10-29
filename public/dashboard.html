@@ -4,39 +4,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
     <title>Rentor · Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/style.css">
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#f9fafb">
-    <style>
-        .message-row.outgoing { justify-content: flex-end !important; }
-        .message-row.incoming { justify-content: flex-start !important; }
-        .message-bubble.outgoing { background: #2c3e8f !important; color: white !important; }
-        .message-bubble.incoming { background: #f3f4f6 !important; color: #1f2937 !important; }
-        .bottom-nav .nav-item { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        #unreadBadge { position: absolute; top: -4px; right: -4px; background: #ef4444; color: white; border-radius: 9999px; padding: 0.15rem 0.4rem; font-size: 0.6rem; font-weight: 600; min-width: 1.2rem; text-align: center; line-height: 1.2; box-shadow: 0 0 0 1px white; z-index: 1; }
-        .contact-name { display: inline-flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
-        .unread-badge { background: #ef4444; color: white; border-radius: 9999px; padding: 0.1rem 0.4rem; font-size: 0.6rem; font-weight: 600; line-height: 1.2; }
-    </style>
+    <meta name="theme-color" content="#111827">
 </head>
 <body>
 <div class="app">
     <div class="header">
         <div class="welcome-row">
-            <div class="greeting"><h2 id="welcomeMessage">Hello</h2><p id="userDetail"></p></div>
-            <div class="role-badge" id="roleBadge"></div>
+            <div class="greeting">
+                <p class="header-label">Overview</p>
+                <h2 id="welcomeMessage">Hello</h2>
+                <p id="userDetail"></p>
+            </div>
+            <div class="header-profile">
+                <div class="profile-avatar"><i class="fas fa-user"></i></div>
+                <div class="role-badge" id="roleBadge"></div>
+            </div>
         </div>
     </div>
     <div class="main-content" id="mainContent"><div class="loading-spinner"><i class="fas fa-spinner fa-pulse fa-2x"></i><br>Loading...</div></div>
-    <div class="bottom-nav">
-        <button class="nav-item" data-section="dashboard"><i class="fas fa-chart-simple"></i><span>Home</span></button>
-        <button class="nav-item" data-section="bills"><i class="fas fa-receipt"></i><span>Bills</span></button>
+    <nav class="bottom-nav" aria-label="Primary navigation">
+        <div class="brand"><span class="brand-mark">R</span><span>Rentor</span></div>
+        <button class="nav-item" data-section="dashboard"><i class="fas fa-table-cells-large"></i><span>Overview</span></button>
+        <button class="nav-item" data-section="bills"><i class="fas fa-file-invoice"></i><span>Bills</span></button>
         <!-- <button class="nav-item" data-section="messages"><i class="fas fa-envelope"></i><span>Messages</span><span id="unreadBadge" class="badge" style="display:none;">0</span></button> -->
         <button class="nav-item" id="adminNavBtn" style="display:none;" data-section="users"><i class="fas fa-users"></i><span>Tenants</span></button>
-        <button class="nav-item" id="specialNavBtn" style="display:none;" data-section="addBill"><i class="fas fa-plus-circle"></i><span>Add Bill</span></button>
-        <button class="nav-item" id="logoutBtn"><i class="fas fa-sign-out-alt"></i><span>Exit</span></button>
-    </div>
+        <button class="nav-item" id="specialNavBtn" style="display:none;" data-section="addBill"><i class="fas fa-plus"></i><span>Add bill</span></button>
+        <button class="nav-item logout-item" id="logoutBtn"><i class="fas fa-arrow-right-from-bracket"></i><span>Sign out</span></button>
+    </nav>
 </div>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
@@ -64,7 +62,7 @@
         try {
             currentUser = await apiGet('/api/users/me');
             localStorage.setItem('user', JSON.stringify(currentUser));
-            document.getElementById('welcomeMessage').innerHTML = `👋 ${currentUser.name.split(' ')[0]}`;
+            document.getElementById('welcomeMessage').textContent = `Hello, ${currentUser.name.split(' ')[0]}`;
             document.getElementById('userDetail').innerHTML = `${currentUser.room ? `Rm ${currentUser.room} · ` : ''}${currentUser.role === 'client' ? 'Tenant' : currentUser.role}`;
             document.getElementById('roleBadge').innerText = currentUser.role.toUpperCase();
             if (currentUser.role === 'admin') {
@@ -364,67 +362,67 @@ function renderDashboard(container) {
     const recent = allBills.slice(0, 3);          // show only 3 recent
 
     container.innerHTML = `
-        <div class="welcome-banner" style="background: linear-gradient(135deg, #2c3e8f 0%, #1a237e 100%); border-radius: 28px; padding: 1.5rem; margin-bottom: 1.5rem; color: white;">
-            <div style="font-size: 1.1rem; opacity: 0.9;">Welcome back,</div>
-            <div style="font-size: 2rem; font-weight: 700; margin-top: 0.25rem;">${escapeHtml(currentUser.name.split(' ')[0])}!</div>
-            <div style="margin-top: 0.5rem; font-size: 0.9rem; opacity: 0.8;">Here's your billing summary</div>
-        </div>
+        <section class="welcome-banner">
+            <div>
+                <div class="eyebrow">Billing workspace</div>
+                <h1>${escapeHtml(currentUser.name.split(' ')[0])}, here is your summary.</h1>
+                <p>Track payments, upcoming due dates, and tenant activity in one place.</p>
+            </div>
+            <button class="banner-action" onclick="showSection('bills')">View all bills <i class="fas fa-arrow-right"></i></button>
+        </section>
         <div class="stats-grid">
-            <div class="stat-card" style="background: #fff7ed; border: 1px solid #ffedd5; text-align: center;">
-                <div class="stat-number" style="color: #c2410c;">${pending}</div>
-                <div class="stat-label">Pending Bills</div>
-                <i class="fas fa-hourglass-half" style="color: #c2410c; font-size: 1.2rem; margin-top: 0.25rem;"></i>
+            <div class="stat-card stat-pending">
+                <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                <div><div class="stat-label">Pending bills</div><div class="stat-number">${pending}</div></div>
             </div>
-            <div class="stat-card" style="background: #ecfdf5; border: 1px solid #d1fae5; text-align: center;">
-                <div class="stat-number" style="color: #047857;">${paid}</div>
-                <div class="stat-label">Paid Bills</div>
-                <i class="fas fa-check-circle" style="color: #047857; font-size: 1.2rem; margin-top: 0.25rem;"></i>
+            <div class="stat-card stat-paid">
+                <div class="stat-icon"><i class="fas fa-check"></i></div>
+                <div><div class="stat-label">Paid bills</div><div class="stat-number">${paid}</div></div>
             </div>
-            <div class="stat-card" style="background: #eff6ff; border: 1px solid #dbeafe; text-align: center;">
-                <div class="stat-number" style="color: #1d4ed8;">₱${totalDue.toLocaleString()}</div>
-                <div class="stat-label">Total Due</div>
-                <i class="fas fa-peso-sign" style="color: #1d4ed8; font-size: 1.2rem; margin-top: 0.25rem;"></i>
+            <div class="stat-card stat-total">
+                <div class="stat-icon"><i class="fas fa-peso-sign"></i></div>
+                <div><div class="stat-label">Total due</div><div class="stat-number">₱${totalDue.toLocaleString()}</div></div>
             </div>
         </div>
+        <div class="dashboard-grid">
         ${upcomingToShow.length ? `
-            <div class="card" style="margin-top: 0.5rem;">
-                <div class="card-header" style="background: #fefce8;">
-                    <i class="fas fa-calendar-exclamation" style="margin-right: 0.5rem;"></i> Upcoming Bills (next 7 days)
-                    ${upcoming.length > 3 ? `<span style="float:right; font-size:0.8rem;"><button class="small" onclick="showSection('bills')">See all ${upcoming.length}</button></span>` : ''}
+            <div class="card">
+                <div class="card-header">
+                    <span><i class="fas fa-calendar"></i> Upcoming</span>
+                    ${upcoming.length > 3 ? `<button class="small" onclick="showSection('bills')">View all</button>` : ''}
                 </div>
-                <div class="card-body" style="padding: 0.5rem 1.25rem;">
+                <div class="card-body dashboard-list">
                     ${upcomingToShow.map(b => `
-                        <div class="bill-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0;">
+                        <div class="bill-item">
                             <div>
                                 <strong>${escapeHtml(b.description)}</strong>
-                                <div style="font-size: 0.8rem; color: #b45309;">Due ${new Date(b.dueDate).toLocaleDateString()}</div>
+                                <div class="item-meta">Due ${new Date(b.dueDate).toLocaleDateString()}</div>
                             </div>
-                            <div class="badge badge-pending" style="font-size: 0.8rem;">₱${b.amount.toLocaleString()}</div>
+                            <div class="badge badge-pending">₱${b.amount.toLocaleString()}</div>
                         </div>
                     `).join('')}
-                    ${upcoming.length <= 3 ? '' : `<div style="text-align:center; padding:0.5rem;"><button class="small" onclick="showSection('bills')">View all ${upcoming.length} upcoming bills →</button></div>`}
                 </div>
             </div>
         ` : ''}
         <div class="card">
             <div class="card-header">
-                <i class="fas fa-receipt" style="margin-right: 0.5rem;"></i> Recent Bills
-                ${allBills.length > 3 ? `<span style="float:right; font-size:0.8rem;"><button class="small" onclick="showSection('bills')">See all ${allBills.length}</button></span>` : ''}
+                <span><i class="fas fa-file-invoice"></i> Recent bills</span>
+                ${allBills.length > 3 ? `<button class="small" onclick="showSection('bills')">View all</button>` : ''}
             </div>
-            <div class="card-body" style="padding: 0.5rem 1.25rem;">
+            <div class="card-body dashboard-list">
                 ${recent.length ? recent.map(b => `
-                    <div class="bill-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0;">
+                    <div class="bill-item">
                         <div>
                             <strong>${escapeHtml(b.description)}</strong>
-                            <div style="font-size: 0.8rem; color: #6b7280;">${b.clientId?.name || 'Unknown'} · ${new Date(b.dueDate).toLocaleDateString()}</div>
+                            <div class="item-meta">${b.clientId?.name || 'Unknown'} · ${new Date(b.dueDate).toLocaleDateString()}</div>
                         </div>
                         <div>
                             <span class="badge ${b.status === 'pending' ? 'badge-pending' : 'badge-paid'}">₱${b.amount.toLocaleString()}</span>
                         </div>
                     </div>
                 `).join('') : '<div class="empty-state">No bills yet</div>'}
-                ${allBills.length <= 3 ? '' : `<div style="text-align:center; padding:0.5rem;"><button class="small" onclick="showSection('bills')">View all bills →</button></div>`}
             </div>
+        </div>
         </div>
     `;
 }
@@ -434,10 +432,10 @@ function formatNumber(value, decimals = 2) {
     return parseFloat(value).toFixed(decimals);
 }
 
-    let billsFilter = { search: '', status: 'all', category: 'all' };
-let billsLoadedCount = 1;       // number of clients currently shown (start with 1)
-const BILLS_INCREMENT = 1;      // load 1 more client each time
-let billsFullClients = [];       // full filtered list of clients (grouped)
+let billsFilter = { search: '', status: 'all', category: 'all' };
+const BILLS_PAGE_SIZE = 8;
+let billsLoadedCount = BILLS_PAGE_SIZE;
+let billsFullClients = [];
 
 async function renderBills(container) {
     if (!allBills.length) {
@@ -481,10 +479,9 @@ async function renderBills(container) {
     }
     billsFullClients = Array.from(billsByClient.values()).sort((a,b) => a.clientName.localeCompare(b.clientName));
     
-    // Ensure loaded count does not exceed total
-    if (billsLoadedCount > billsFullClients.length) billsLoadedCount = billsFullClients.length;
-    const clientsToShow = billsFullClients.slice(0, billsLoadedCount);
-    const hasMore = billsLoadedCount < billsFullClients.length;
+    const visibleCount = Math.min(billsLoadedCount, billsFullClients.length);
+    const clientsToShow = billsFullClients.slice(0, visibleCount);
+    const hasMore = visibleCount < billsFullClients.length;
 
     // Filter bar HTML (unchanged – keep your existing)
     const filterBarHtml = `<div class="filter-bar-modern" style="background: white; padding: 0.8rem 1rem; border-radius: 24px; margin-bottom: 1.2rem; border:1px solid #eef2f6;">
@@ -538,53 +535,62 @@ if (currentUser.role === 'admin' || currentUser.role === 'special') {
         return;
     }
 
+    const resultsHtml = `
+        <div class="bills-results-bar">
+            <span>Showing <strong>${clientsToShow.length}</strong> of ${billsFullClients.length} tenants</span>
+            <span><strong>${filtered.length}</strong> bill${filtered.length === 1 ? '' : 's'}</span>
+        </div>
+    `;
+
     let clientsHtml = '';
     for (const clientData of clientsToShow) {
-        const groupedByDesc = new Map();
-        for (const bill of clientData.bills) {
-            const desc = bill.description;
-            if (!groupedByDesc.has(desc)) groupedByDesc.set(desc, []);
-            groupedByDesc.get(desc).push(bill);
-        }
+        const sortedBills = [...clientData.bills].sort((a,b) => new Date(b.dueDate) - new Date(a.dueDate));
         clientsHtml += `
             <div class="bill-client-card">
                 <div class="bill-client-header">
-                    <i class="fas fa-user-circle"></i> <strong>${escapeHtml(clientData.clientName)}</strong>
-                    <span style="font-size:0.8rem; font-weight:normal; color:#5b6e8c;">(${escapeHtml(clientData.clientRoom)}, ${escapeHtml(clientData.clientLevel)})</span>
-                    <span style="float:right; font-size:0.8rem; font-weight:400;">Total: ₱${formatNumber(clientData.totalAmount)}</span>
-                    ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
-                        `<button class="small" onclick="printReceipt('${clientData.clientId}', '${escapeHtml(clientData.clientName)}')" style="float:right; margin-right:1rem; background:none; border:none; color:#2c3e8f;"><i class="fas fa-print"></i> Print</button>` : ''}
-                </div>
-                <div class="card-body" style="padding:0;">
-        `;
-        for (const [category, bills] of groupedByDesc) {
-            const sortedBills = bills.sort((a,b) => new Date(b.dueDate) - new Date(a.dueDate));
-            clientsHtml += `
-                <div class="bill-category-group">
-                    <div class="bill-category-title"><i class="fas fa-tag"></i> ${escapeHtml(category)}</div>
-            `;
-            for (const bill of sortedBills) {
-                const dueDate = new Date(bill.dueDate);
-                const monthYear = dueDate.toLocaleString('default', { month: 'short', year: 'numeric' });
-                clientsHtml += `
-                    <div class="bill-item-row">
-                        <div class="bill-item-details">
-                            <div class="bill-month">${monthYear}</div>
-                            <div class="bill-amount">₱${formatNumber(bill.amount)}</div>
-                            <span class="badge ${bill.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${bill.status === 'pending' ? 'Pending' : 'Paid'}</span>
-                        </div>
-                        <div class="bill-actions">
-                            ${bill.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special') ? 
-                                `<button class="small" onclick="markPaid('${bill._id}')" title="Mark paid"><i class="fas fa-check-circle"></i></button>` : ''}
-                            ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
-                                `<button class="small" onclick="deleteBill('${bill._id}')" title="Delete" style="color:#b91c1c;"><i class="fas fa-trash-alt"></i></button>` : ''}
-                            ${bill.ratePerKwh !== undefined && bill.ratePerKwh !== null ? 
-                                `<button class="small" onclick="showComputation('${bill._id}')" title="Computation"><i class="fas fa-calculator"></i></button>` : ''}
+                    <div class="client-identity">
+                        <i class="fas fa-user-circle"></i>
+                        <div>
+                            <strong>${escapeHtml(clientData.clientName)}</strong>
+                            <span class="client-location">${escapeHtml(clientData.clientRoom)}, ${escapeHtml(clientData.clientLevel)}</span>
                         </div>
                     </div>
-                `;
-            }
-            clientsHtml += `</div>`;
+                    <div class="client-summary">
+                        <span>Total: <strong>₱${formatNumber(clientData.totalAmount)}</strong></span>
+                        ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
+                            `<button class="small" onclick="printReceipt('${clientData.clientId}', '${escapeHtml(clientData.clientName)}')"><i class="fas fa-print"></i> Print</button>` : ''}
+                    </div>
+                </div>
+                <div class="bill-records">
+                    <div class="bill-records-head" aria-hidden="true">
+                        <span>Bill</span><span>Month</span><span>Amount</span><span>Status</span><span>Actions</span>
+                    </div>
+        `;
+        for (const bill of sortedBills) {
+            const dueDate = new Date(bill.dueDate);
+            const monthYear = dueDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+            clientsHtml += `
+                    <div class="bill-record-row">
+                        <div class="bill-record-title">
+                            <span class="bill-record-icon"><i class="fas fa-file-invoice"></i></span>
+                            <div>
+                                <strong>${escapeHtml(bill.description)}</strong>
+                                <small>Due ${dueDate.toLocaleDateString()}</small>
+                            </div>
+                        </div>
+                        <div class="bill-record-period">${monthYear}</div>
+                        <div class="bill-record-value">₱${formatNumber(bill.amount)}</div>
+                        <div class="bill-record-status"><span class="badge ${bill.status === 'pending' ? 'badge-pending' : 'badge-paid'}">${bill.status === 'pending' ? 'Pending' : 'Paid'}</span></div>
+                        <div class="bill-actions">
+                            ${bill.status === 'pending' && (currentUser.role === 'admin' || currentUser.role === 'special') ? 
+                                `<button class="small" onclick="markPaid('${bill._id}')" title="Mark paid" aria-label="Mark bill as paid"><i class="fas fa-check"></i></button>` : ''}
+                            ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
+                                `<button class="small" onclick="deleteBill('${bill._id}')" title="Delete" aria-label="Delete bill" style="color:#b91c1c;"><i class="fas fa-trash-alt"></i></button>` : ''}
+                            ${bill.ratePerKwh !== undefined && bill.ratePerKwh !== null ? 
+                                `<button class="small" onclick="showComputation('${bill._id}')" title="Computation" aria-label="View bill computation"><i class="fas fa-calculator"></i></button>` : ''}
+                        </div>
+                    </div>
+            `;
         }
         clientsHtml += `</div></div>`;
     }
@@ -592,18 +598,20 @@ if (currentUser.role === 'admin' || currentUser.role === 'special') {
     // Show more button
     let moreHtml = '';
     if (hasMore) {
+        const remaining = billsFullClients.length - visibleCount;
+        const nextCount = Math.min(BILLS_PAGE_SIZE, remaining);
         moreHtml = `<div style="text-align:center; margin-top:1rem;">
-            <button id="loadMoreBtn" class="primary-btn" style="background:#eef2ff; color:#2c3e8f;">Show more tenants</button>
+            <button id="loadMoreBtn" class="primary-btn load-more-btn">Show ${nextCount} more tenant${nextCount === 1 ? '' : 's'}</button>
         </div>`;
     }
 
-    container.innerHTML = batchPrintButton + filterBarHtml + clientsHtml + moreHtml;
+    container.innerHTML = batchPrintButton + filterBarHtml + resultsHtml + clientsHtml + moreHtml;
 
     // Attach load more handler
     const loadMoreBtn = document.getElementById('loadMoreBtn');
     if (loadMoreBtn) {
         loadMoreBtn.onclick = () => {
-            billsLoadedCount += BILLS_INCREMENT;
+            billsLoadedCount += BILLS_PAGE_SIZE;
             renderBills(container);
         };
     }
@@ -616,11 +624,26 @@ if (currentUser.role === 'admin' || currentUser.role === 'special') {
 
     function attachFilterEvents() {
         const searchInput = document.getElementById('billsSearchInput'), statusSelect = document.getElementById('billsStatusFilter'), categorySelect = document.getElementById('billsCategoryFilter'), resetBtn = document.getElementById('billsResetFiltersBtn');
-        const update = () => { billsFilter.search = searchInput ? searchInput.value : ''; billsFilter.status = statusSelect ? statusSelect.value : 'all'; billsFilter.category = categorySelect ? categorySelect.value : 'all'; showSection('bills'); };
-        if (searchInput) searchInput.addEventListener('input', update);
-        if (statusSelect) statusSelect.addEventListener('change', update);
-        if (categorySelect) categorySelect.addEventListener('change', update);
-        if (resetBtn) resetBtn.addEventListener('click', () => { if (searchInput) searchInput.value = ''; if (statusSelect) statusSelect.value = 'all'; if (categorySelect) categorySelect.value = 'all'; billsFilter.search = ''; billsFilter.status = 'all'; billsFilter.category = 'all'; showSection('bills'); });
+        const update = (restoreSearchFocus = false) => {
+            billsFilter.search = searchInput ? searchInput.value : '';
+            billsFilter.status = statusSelect ? statusSelect.value : 'all';
+            billsFilter.category = categorySelect ? categorySelect.value : 'all';
+            billsLoadedCount = BILLS_PAGE_SIZE;
+            renderBills(document.getElementById('mainContent'));
+            if (restoreSearchFocus) {
+                const nextSearchInput = document.getElementById('billsSearchInput');
+                nextSearchInput?.focus();
+                nextSearchInput?.setSelectionRange(nextSearchInput.value.length, nextSearchInput.value.length);
+            }
+        };
+        if (searchInput) searchInput.addEventListener('input', () => update(true));
+        if (statusSelect) statusSelect.addEventListener('change', () => update());
+        if (categorySelect) categorySelect.addEventListener('change', () => update());
+        if (resetBtn) resetBtn.addEventListener('click', () => {
+            billsFilter = { search: '', status: 'all', category: 'all' };
+            billsLoadedCount = BILLS_PAGE_SIZE;
+            renderBills(document.getElementById('mainContent'));
+        });
     }
     window.deleteBill = async (billId) => { if (!confirm('Delete permanently?')) return; try { await fetch(`/api/bills/${billId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); alert('Bill deleted'); await loadData(); showSection('bills'); } catch(err) { alert(err.message); } };
     window.markPaid = async (billId) => { if (!confirm('Mark as paid?')) return; try { await fetch(`/api/bills/${billId}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } }); await loadData(); showSection('bills'); } catch(e) { alert(e.message); } };
@@ -630,9 +653,9 @@ function renderAddBill(container) {
     const defaultDueDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-15`;
 
     container.innerHTML = `
-        <div style="display: flex; flex-wrap: wrap; gap: 1.5rem;">
+        <div class="add-bill-layout">
             <!-- Left column -->
-            <div style="flex: 1.2; min-width: 260px;">
+            <div class="preview-column">
                 <div class="card">
                     <div class="card-header">📋 Monthly Preview</div>
                     <div class="card-body">
@@ -652,8 +675,8 @@ function renderAddBill(container) {
                 </div>
             </div>
             <!-- Right column -->
-            <div style="flex: 2; min-width: 320px;">
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 2px solid #eef2f6; padding-bottom: 0.5rem;">
+            <div class="bill-form-column">
+                <div class="tabs-list">
                     <button class="tab-btn active" data-tab="meter">⚡ Meter Reading</button>
                     <button class="tab-btn" data-tab="manual">📝 Manual Bill</button>
                     ${(currentUser.role === 'admin' || currentUser.role === 'special') ? `<button class="tab-btn" data-tab="recurring">🔄 Recurring Bill</button>` : ''}
@@ -722,7 +745,7 @@ function renderAddBill(container) {
             <div class="card-header">➕ Add new bill (manual)</div>
             <div class="card-body">
                 <form id="billFormSimple">
-                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <div class="form-row">
                         <input type="text" id="descSimple" list="descSuggestions" placeholder="Description (e.g. Misc Fee)" required style="flex:2;">
                         <datalist id="descSuggestions"></datalist>
                         <input type="number" id="amountSimple" placeholder="Amount (₱)" step="0.01" required style="flex:1;">
@@ -905,7 +928,7 @@ function renderAddBill(container) {
                     <div style="margin-bottom:0.5rem;"><strong>For tenant: <span id="meterTenantName">${allClients.find(c=>c._id===tenantSelect.value)?.name || ''}</span></strong></div>
                     <select id="meterTemplateSelect" required><option value="">-- Select template --</option></select>
                     <input type="number" id="meterReading" placeholder="Current Reading (units)" step="0.01" required>
-                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <div class="form-row form-row-thirds">
                         <input type="number" id="meterRate" placeholder="Rate per unit (₱)" step="0.01" required style="flex:1;">
                         <input type="number" id="meterMin" placeholder="Minimum amount (₱)" step="0.01" style="flex:1;">
                         <input type="number" id="meterDueDay" placeholder="Due day (1-31)" min="1" max="31" required style="flex:1;" value="15">
@@ -918,7 +941,7 @@ function renderAddBill(container) {
         <div class="card">
             <div class="card-header">📊 Previous Reading (editable)</div>
             <div class="card-body">
-                <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                <div class="form-row">
                     <div style="flex:2;">
                         <input type="text" id="prevReadingDesc" placeholder="Description" list="prevDescList">
                         <datalist id="prevDescList"></datalist>
@@ -932,7 +955,7 @@ function renderAddBill(container) {
         <div class="card">
             <div class="card-header">📄 Bill Templates (global)</div>
             <div class="card-body">
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:0.5rem; margin-bottom:1rem;">
+                 <div class="template-form-grid">
                     <input type="text" id="templateName" placeholder="Name" required>
                     <input type="text" id="templateDesc" placeholder="Description" required>
                     <input type="number" id="templateRate" placeholder="Rate/unit" step="0.01" required>

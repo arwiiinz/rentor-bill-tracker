@@ -4,152 +4,306 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
     <title>Rentor · Login</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#111827">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+
+        :root {
+            --ink: #172033;
+            --muted: #6b7280;
+            --line: #e3e7ed;
+            --accent: #5b5ce2;
+            --accent-dark: #4647c7;
+        }
+
+        html {
+            min-height: 100%;
+            background: #f3f5f7;
+        }
+
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+            min-height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 1.5rem;
+            padding: clamp(20px, 4vw, 48px);
+            overflow-x: hidden;
+            background:
+                radial-gradient(circle at 12% 15%, rgba(91, 92, 226, 0.1), transparent 25rem),
+                #f3f5f7;
+            color: var(--ink);
+            font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            -webkit-font-smoothing: antialiased;
         }
+
         .login-container {
-            max-width: 420px;
+            max-width: 920px;
             width: 100%;
             margin: 0 auto;
         }
+
         .card {
-            background: rgba(255, 255, 255, 0.98);
-            backdrop-filter: blur(10px);
-            border-radius: 40px;
-            padding: 2rem 1.8rem;
-            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.25);
-            transition: transform 0.2s ease;
+            display: grid;
+            grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+            min-height: 570px;
+            overflow: hidden;
+            border: 1px solid rgba(220, 225, 232, 0.9);
+            border-radius: 22px;
+            background: #ffffff;
+            box-shadow: 0 24px 70px rgba(24, 32, 51, 0.12);
         }
+
+        .login-intro {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: clamp(32px, 5vw, 52px);
+            background: #172033;
+            color: #ffffff;
+        }
+
         .logo {
-            text-align: center;
-            margin-bottom: 1.8rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
+
         .logo-icon {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            width: 70px;
-            height: 70px;
-            border-radius: 35px;
-            display: inline-flex;
+            display: flex;
+            width: 40px;
+            height: 40px;
             align-items: center;
             justify-content: center;
-            margin-bottom: 1rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-radius: 11px;
+            background: var(--accent);
+            box-shadow: 0 8px 20px rgba(91, 92, 226, 0.35);
         }
+
         .logo-icon i {
-            font-size: 2rem;
+            font-size: 1rem;
             color: white;
         }
+
         h1 {
-            font-size: 2rem;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-            background: linear-gradient(135deg, #1e1b4b 0%, #2c3e8f 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            margin-bottom: 0.25rem;
+            color: #ffffff;
+            font-size: 1.08rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
         }
+
         .sub {
-            font-size: 0.9rem;
-            color: #6b7280;
-            margin-bottom: 2rem;
+            color: #9ca5b4;
+            font-size: 0.72rem;
+            font-weight: 500;
         }
+
+        .intro-copy h2 {
+            max-width: 310px;
+            font-size: clamp(2rem, 4vw, 3.15rem);
+            line-height: 1.05;
+            letter-spacing: -0.055em;
+        }
+
+        .intro-copy p {
+            max-width: 330px;
+            margin-top: 18px;
+            color: #aeb6c4;
+            font-size: 0.88rem;
+            line-height: 1.7;
+        }
+
+        .intro-foot {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #8993a3;
+            font-size: 0.68rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .intro-foot::before {
+            content: '';
+            width: 28px;
+            height: 1px;
+            background: #4b5565;
+        }
+
+        .login-form-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: clamp(32px, 6vw, 64px);
+        }
+
+        .form-heading {
+            margin-bottom: 30px;
+        }
+
+        .form-heading h2 {
+            font-size: clamp(1.55rem, 3vw, 2rem);
+            line-height: 1.2;
+            letter-spacing: -0.04em;
+        }
+
+        .form-heading p {
+            margin-top: 7px;
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+
         .input-group {
-            margin-bottom: 1.25rem;
+            margin-bottom: 18px;
         }
+
         label {
             display: block;
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: #374151;
-            margin-bottom: 0.5rem;
+            margin-bottom: 7px;
+            color: #3f4755;
+            font-size: 0.74rem;
+            font-weight: 700;
         }
+
         .input-icon {
             position: relative;
         }
+
         .input-icon i {
             position: absolute;
-            left: 1rem;
+            left: 14px;
             top: 50%;
             transform: translateY(-50%);
-            color: #9ca3af;
-            font-size: 1.1rem;
+            color: #9ba4b2;
+            font-size: 0.9rem;
+            pointer-events: none;
         }
+
         input {
             width: 100%;
-            padding: 0.9rem 1rem 0.9rem 2.5rem;
-            font-size: 1rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 28px;
+            min-height: 48px;
+            padding: 11px 14px 11px 42px;
+            border: 1px solid var(--line);
+            border-radius: 11px;
             background: #ffffff;
-            transition: all 0.2s;
+            color: var(--ink);
             font-family: inherit;
+            font-size: 0.86rem;
             outline: none;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease;
         }
+
+        input::placeholder {
+            color: #a1aab7;
+        }
+
         input:focus {
-            border-color: #2c3e8f;
-            box-shadow: 0 0 0 3px rgba(44, 62, 143, 0.1);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(91, 92, 226, 0.1);
         }
+
         /* Mask password field (Chrome, Edge, Safari) */
         #password {
             -webkit-text-security: disc;
-            font-family: monospace;
             letter-spacing: 1px;
         }
+
         button {
             width: 100%;
-            padding: 0.9rem;
-            background: linear-gradient(135deg, #2c3e8f 0%, #1e1b4b 100%);
-            color: white;
-            border: none;
-            border-radius: 40px;
-            font-size: 1rem;
-            font-weight: 600;
+            min-height: 48px;
+            margin-top: 8px;
+            padding: 11px 16px;
+            border: 1px solid var(--accent);
+            border-radius: 11px;
+            background: var(--accent);
+            color: #ffffff;
+            font-family: inherit;
+            font-size: 0.84rem;
+            font-weight: 750;
             cursor: pointer;
-            transition: opacity 0.2s, transform 0.1s;
-            margin-top: 0.5rem;
+            transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
         }
+
+        button:hover {
+            background: var(--accent-dark);
+            box-shadow: 0 9px 20px rgba(91, 92, 226, 0.2);
+        }
+
         button:active {
-            transform: scale(0.98);
+            transform: translateY(1px);
         }
-        .demo-hint {
-            text-align: center;
-            margin-top: 1.5rem;
-            font-size: 0.8rem;
-            color: #6b7280;
-            border-top: 1px solid #eef2f6;
-            padding-top: 1.2rem;
-        }
+
         .alert {
-            padding: 0.85rem 1rem;
-            border-radius: 20px;
-            margin-bottom: 1.25rem;
-            font-size: 0.85rem;
-            background: #fee2e2;
-            color: #b91c1c;
-            border-left: 3px solid #b91c1c;
+            margin-bottom: 18px;
+            padding: 11px 13px;
+            border: 1px solid #f4ced1;
+            border-radius: 10px;
+            background: #fff3f4;
+            color: #a93640;
+            font-size: 0.76rem;
         }
-        @media (max-width: 480px) {
-            .card {
-                padding: 1.5rem;
+
+        @media (max-width: 720px) {
+            body {
+                align-items: flex-start;
+                padding: 16px;
             }
-            h1 {
-                font-size: 1.8rem;
+
+            .card {
+                display: block;
+                min-height: 0;
+                border-radius: 18px;
+            }
+
+            .login-intro {
+                min-height: 205px;
+                padding: 25px;
+            }
+
+            .intro-copy h2 {
+                max-width: 270px;
+                font-size: 2rem;
+            }
+
+            .intro-copy p,
+            .intro-foot {
+                display: none;
+            }
+
+            .login-form-panel {
+                padding: 30px 24px 34px;
+            }
+
+            .form-heading {
+                margin-bottom: 24px;
+            }
+        }
+
+        @media (max-width: 390px) {
+            body {
+                padding: 0;
+                background: #ffffff;
+            }
+
+            .card {
+                min-height: 100dvh;
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            .login-intro {
+                min-height: 190px;
+            }
+
+            .login-form-panel {
+                padding-inline: 20px;
             }
         }
     </style>
@@ -157,41 +311,54 @@
 <body>
 <div class="login-container">
     <div class="card">
-        <div class="logo">
-            <div class="logo-icon">
-                <i class="fas fa-home"></i>
-            </div>
-            <h1>Rentor</h1>
-            <div class="sub">Bill tracker for tenants</div>
-        </div>
-
-        <div id="alertMessage"></div>
-
-        <!-- Form with autocomplete prevention and masked password field -->
-        <form id="loginForm" autocomplete="off">
-            <!-- Hidden dummy fields to confuse password managers -->
-            <input type="text" style="display:none">
-            <input type="password" style="display:none">
-
-            <div class="input-group">
-                <label>Username</label>
-                <div class="input-icon">
-                    <i class="fas fa-user"></i>
-                    <input type="text" id="username" placeholder="e.g., admin" autocomplete="off" required>
+        <section class="login-intro">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-building"></i>
+                </div>
+                <div>
+                    <h1>Rentor</h1>
+                    <div class="sub">Property billing</div>
                 </div>
             </div>
-            <div class="input-group">
-                <label>Password</label>
-                <div class="input-icon">
-                    <i class="fas fa-lock"></i>
-                    <input type="text" id="password" placeholder="Enter your password" autocomplete="off" required>
-                </div>
+            <div class="intro-copy">
+                <h2>Bills, without the busywork.</h2>
+                <p>A focused workspace for tracking tenant charges, payments, and meter readings.</p>
             </div>
-            <button type="submit">Log in →</button>
-        </form>
-        <!-- <div class="demo-hint">
-            <i class="fas fa-mobile-alt"></i>G
-        </div> -->
+            <div class="intro-foot">Simple property operations</div>
+        </section>
+
+        <section class="login-form-panel">
+            <div class="form-heading">
+                <h2>Welcome back</h2>
+                <p>Sign in to continue to your workspace.</p>
+            </div>
+
+            <div id="alertMessage"></div>
+
+            <!-- Form with autocomplete prevention and masked password field -->
+            <form id="loginForm" autocomplete="off">
+                <!-- Hidden dummy fields to confuse password managers -->
+                <input type="text" style="display:none">
+                <input type="password" style="display:none">
+
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <div class="input-icon">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="username" placeholder="Enter your username" autocomplete="off" required>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <div class="input-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="text" id="password" placeholder="Enter your password" autocomplete="off" required>
+                    </div>
+                </div>
+                <button type="submit">Sign in</button>
+            </form>
+        </section>
     </div>
 </div>
 
