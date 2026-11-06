@@ -81,8 +81,227 @@
         } catch(e) { console.warn(e); }
     }
     function escapeHtml(str) {
-        if (!str) return '';
-        return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
+        if (str === undefined || str === null) return '';
+        const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+        return String(str).replace(/[&<>"']/g, character => entities[character]);
+    }
+
+    function showToast(message, type = 'auto') {
+        let container = document.getElementById('appToastContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'appToastContainer';
+            container.className = 'toast-container';
+            container.setAttribute('aria-live', 'polite');
+            document.body.appendChild(container);
+        }
+
+        const text = String(message || 'Something went wrong.');
+        const resolvedType = type === 'auto'
+            ? (/fail|error|invalid|not found|unauthorized|denied|exists|wrong/i.test(text)
+                ? 'error'
+                : (/fill|required|select|allow/i.test(text)
+                    ? 'warning'
+                    : (/created|saved|updated|deleted|paid|generated|removed|sent|success/i.test(text) ? 'success' : 'error')))
+            : type;
+        const icons = { success: 'fa-check', warning: 'fa-exclamation', error: 'fa-xmark', info: 'fa-info' };
+        const toast = document.createElement('div');
+        toast.className = `app-toast toast-${resolvedType}`;
+        toast.setAttribute('role', resolvedType === 'error' ? 'alert' : 'status');
+        toast.innerHTML = `
+            <span class="toast-icon"><i class="fas ${icons[resolvedType] || icons.info}"></i></span>
+            <span class="toast-message"></span>
+            <button type="button" class="toast-close" aria-label="Dismiss notification"><i class="fas fa-xmark"></i></button>
+        `;
+        toast.querySelector('.toast-message').textContent = text.replace(/^[✅❌⚠️]+\s*/, '');
+        let dismissTimer;
+        const remove = () => {
+            clearTimeout(dismissTimer);
+            toast.classList.add('is-leaving');
+            setTimeout(() => toast.remove(), 180);
+        };
+        const scheduleDismiss = () => {
+            clearTimeout(dismissTimer);
+            dismissTimer = setTimeout(remove, 4200);
+        };
+        toast.querySelector('.toast-close').addEventListener('click', remove);
+        toast.addEventListener('mouseenter', () => clearTimeout(dismissTimer));
+        toast.addEventListener('mouseleave', scheduleDismiss);
+        toast.addEventListener('focusin', () => clearTimeout(dismissTimer));
+        toast.addEventListener('focusout', scheduleDismiss);
+        container.appendChild(toast);
+        requestAnimationFrame(() => toast.classList.add('is-visible'));
+        scheduleDismiss();
+    }
+
+    window.alert = message => showToast(message);
+
+    let appDialogSequence = 0;
+    function createDialogFrame({ title, message = '', variant = 'default', icon = 'fa-circle-question' }) {
+        const dialogId = ++appDialogSequence;
+        const titleId = `appDialogTitle${dialogId}`;
+        const messageId = `appDialogMessage${dialogId}`;
+        const previousFocus = document.activeElement;
+        const background = document.querySelector('.app');
+        const overlay = document.createElement('div');
+        overlay.className = 'app-dialog-overlay';
+        overlay.innerHTML = `
+            <div class="app-dialog dialog-${variant}" role="dialog" aria-modal="true" aria-labelledby="${titleId}" aria-describedby="${messageId}">
+                <div class="dialog-icon"><i class="fas ${icon}"></i></div>
+                <div class="dialog-copy">
+                    <h3 id="${titleId}"></h3>
+                    <p class="dialog-message" id="${messageId}"></p>
+                </div>
+                <div class="dialog-body"></div>
+                <div class="dialog-actions"></div>
+            </div>
+        `;
+        overlay.querySelector('h3').textContent = title;
+        const messageElement = overlay.querySelector('.dialog-message');
+        messageElement.textContent = message;
+        messageElement.hidden = !message;
+        if (!message) overlay.querySelector('.app-dialog').removeAttribute('aria-describedby');
+        background?.setAttribute('inert', '');
+        document.body.appendChild(overlay);
+        requestAnimationFrame(() => overlay.classList.add('is-visible'));
+        return {
+            overlay,
+            panel: overlay.querySelector('.app-dialog'),
+            body: overlay.querySelector('.dialog-body'),
+            actions: overlay.querySelector('.dialog-actions'),
+            background,
+            previousFocus
+        };
+    }
+
+    function trapDialogFocus(event, panel) {
+        if (event.key !== 'Tab') return;
+        const focusable = [...panel.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+            .filter(element => !element.hidden && element.offsetParent !== null);
+        if (!focusable.length) {
+            event.preventDefault();
+            panel.focus();
+            return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+            event.preventDefault();
+            first.focus();
+        }
+    }
+
+    function confirmDialog({ title = 'Confirm action', message = '', confirmLabel = 'Confirm', cancelLabel = 'Cancel', variant = 'default', icon = 'fa-circle-question' } = {}) {
+        return new Promise(resolve => {
+            const frame = createDialogFrame({ title, message, variant, icon });
+            const cancelButton = document.createElement('button');
+            cancelButton.type = 'button';
+            cancelButton.className = 'dialog-button dialog-cancel';
+            cancelButton.textContent = cancelLabel;
+            const confirmButton = document.createElement('button');
+            confirmButton.type = 'button';
+            confirmButton.className = `dialog-button dialog-confirm ${variant === 'danger' ? 'dialog-danger' : ''}`;
+            confirmButton.textContent = confirmLabel;
+            frame.actions.append(cancelButton, confirmButton);
+
+            let settled = false;
+            const finish = result => {
+                if (settled) return;
+                settled = true;
+                document.removeEventListener('keydown', onKeyDown);
+                frame.overlay.classList.remove('is-visible');
+                setTimeout(() => {
+                    frame.overlay.remove();
+                    frame.background?.removeAttribute('inert');
+                    frame.previousFocus?.focus?.();
+                }, 180);
+                resolve(result);
+            };
+            const onKeyDown = event => {
+                if (event.key === 'Escape') finish(false);
+                else trapDialogFocus(event, frame.panel);
+            };
+            cancelButton.addEventListener('click', () => finish(false));
+            confirmButton.addEventListener('click', () => finish(true));
+            frame.overlay.addEventListener('click', event => {
+                if (event.target === frame.overlay) finish(false);
+            });
+            document.addEventListener('keydown', onKeyDown);
+            confirmButton.focus();
+        });
+    }
+
+    let dialogFormSequence = 0;
+    function formDialog({ title, message = '', fields = [], submitLabel = 'Save changes', variant = 'default', icon = 'fa-pen' } = {}) {
+        return new Promise(resolve => {
+            const frame = createDialogFrame({ title, message, variant, icon });
+            const form = document.createElement('form');
+            form.className = 'dialog-form';
+            form.id = `appDialogForm${++dialogFormSequence}`;
+
+            for (const field of fields) {
+                const group = document.createElement('div');
+                group.className = 'dialog-field';
+                const label = document.createElement('label');
+                const input = document.createElement('input');
+                input.id = `${form.id}_${field.name}`;
+                input.name = field.name;
+                input.type = field.type || 'text';
+                input.value = field.value ?? '';
+                input.placeholder = field.placeholder || '';
+                input.required = Boolean(field.required);
+                if (field.min !== undefined) input.min = field.min;
+                if (field.max !== undefined) input.max = field.max;
+                label.htmlFor = input.id;
+                label.textContent = field.label;
+                group.append(label, input);
+                form.appendChild(group);
+            }
+            frame.body.appendChild(form);
+
+            const cancelButton = document.createElement('button');
+            cancelButton.type = 'button';
+            cancelButton.className = 'dialog-button dialog-cancel';
+            cancelButton.textContent = 'Cancel';
+            const submitButton = document.createElement('button');
+            submitButton.type = 'submit';
+            submitButton.className = 'dialog-button dialog-confirm';
+            submitButton.setAttribute('form', form.id);
+            submitButton.textContent = submitLabel;
+            frame.actions.append(cancelButton, submitButton);
+
+            let settled = false;
+            const finish = result => {
+                if (settled) return;
+                settled = true;
+                document.removeEventListener('keydown', onKeyDown);
+                frame.overlay.classList.remove('is-visible');
+                setTimeout(() => {
+                    frame.overlay.remove();
+                    frame.background?.removeAttribute('inert');
+                    frame.previousFocus?.focus?.();
+                }, 180);
+                resolve(result);
+            };
+            const onKeyDown = event => {
+                if (event.key === 'Escape') finish(null);
+                else trapDialogFocus(event, frame.panel);
+            };
+            form.addEventListener('submit', event => {
+                event.preventDefault();
+                if (!form.reportValidity()) return;
+                finish(Object.fromEntries(new FormData(form).entries()));
+            });
+            cancelButton.addEventListener('click', () => finish(null));
+            frame.overlay.addEventListener('click', event => {
+                if (event.target === frame.overlay) finish(null);
+            });
+            document.addEventListener('keydown', onKeyDown);
+            form.querySelector('input')?.focus();
+        });
     }
 
     
@@ -94,66 +313,62 @@
     const year = d.getFullYear();
     return `${month}/${day}/${year}`;
 }
-async function printAllReceipts() {
+async function printAllReceipts(options = {}) {
     try {
-        const monthInput = document.getElementById('printMonth');
-        const printModeRadios = document.querySelectorAll('input[name="printMode"]');
-        const markPaidCheckbox = document.getElementById('markPaidAfterPrint');
-        let printMode = 'paid';
-        for (let radio of printModeRadios) {
-            if (radio.checked) { printMode = radio.value; break; }
-        }
-        const shouldMarkPaid = markPaidCheckbox ? markPaidCheckbox.checked : false;
+        const suppliedBills = Array.isArray(options.bills) ? options.bills : null;
+        let billsToPrint = suppliedBills ? [...suppliedBills] : [];
+        let printMode = suppliedBills ? 'selected' : 'paid';
+        let shouldMarkPaid = false;
+        let year = '';
+        let month = '';
+        let startDate = null;
+        let endDate = null;
+        let monthName = options.title || '';
+        let modeText = suppliedBills ? `${billsToPrint.length} selected bill${billsToPrint.length === 1 ? '' : 's'}` : '';
 
-        if (!monthInput) {
-            alert('Month selector not found');
-            return;
-        }
-        const [year, month] = monthInput.value.split('-');
-        if (!year || !month) {
-            alert('Invalid month selection');
-            return;
-        }
-        const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-        const endDate = new Date(parseInt(year), parseInt(month), 0);
-
-        let billsToPrint;
-        if (printMode === 'paid') {
-            billsToPrint = allBills.filter(bill => {
-                if (bill.status !== 'paid') return false;
-                if (!bill.paidDate) return false;
-                const paid = new Date(bill.paidDate);
-                return paid >= startDate && paid <= endDate;
-            });
-        } else {
-            billsToPrint = allBills.filter(bill => {
-                const due = new Date(bill.dueDate);
-                return due >= startDate && due <= endDate;
-            });
-        }
-
-        if (billsToPrint.length === 0) {
-            alert(`No bills found for ${monthInput.value}`);
-            return;
-        }
-
-        // Optionally mark bills as paid after printing
-        if (shouldMarkPaid && printMode === 'all') {
-            const pendingBills = billsToPrint.filter(b => b.status === 'pending');
-            for (const bill of pendingBills) {
-                try {
-                    await fetch(`/api/bills/${bill._id}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
-                } catch(e) { console.warn(e); }
+        if (!suppliedBills) {
+            const monthInput = document.getElementById('printMonth');
+            const printModeRadios = document.querySelectorAll('input[name="printMode"]');
+            const markPaidCheckbox = document.getElementById('markPaidAfterPrint');
+            for (const radio of printModeRadios) {
+                if (radio.checked) { printMode = radio.value; break; }
             }
-            await loadData();
-            const updatedBills = await apiGet('/api/bills');
-            allBills = updatedBills;
-            if (printMode === 'all') {
+            shouldMarkPaid = Boolean(markPaidCheckbox?.checked);
+
+            if (!monthInput) {
+                alert('Month selector not found');
+                return;
+            }
+            [year, month] = monthInput.value.split('-');
+            if (!year || !month) {
+                alert('Invalid month selection');
+                return;
+            }
+            startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+            endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59, 999);
+
+            if (printMode === 'paid') {
+                billsToPrint = allBills.filter(bill => {
+                    if (bill.status !== 'paid' || !bill.paidDate) return false;
+                    const paid = new Date(bill.paidDate);
+                    return paid >= startDate && paid <= endDate;
+                });
+            } else {
                 billsToPrint = allBills.filter(bill => {
                     const due = new Date(bill.dueDate);
                     return due >= startDate && due <= endDate;
                 });
             }
+
+            monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+            modeText = printMode === 'paid' ? 'Paid Bills' : 'All Bills';
+        } else {
+            monthName ||= 'Selected bills';
+        }
+
+        if (billsToPrint.length === 0) {
+            alert(suppliedBills ? 'Select at least one bill to print.' : `No bills found for ${monthName}`);
+            return;
         }
 
         // Group by client
@@ -178,36 +393,8 @@ async function printAllReceipts() {
         let allCards = [];
         for (const [clientId, clientData] of billsByClient) {
             clientData.bills.sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
-            let billsListHtml = '';
-            for (const bill of clientData.bills) {
-                const dueDate = formatDate(bill.dueDate);
-                let computationHtml = '';
-                if (bill.ratePerKwh !== undefined && bill.ratePerKwh !== null) {
-                    const consumption = bill.consumptionKwh ?? 0;
-                    const previous = bill.previousReading ?? 0;
-                    const current = bill.currentReading ?? 0;
-                    const rate = bill.ratePerKwh;
-                    const subtotalNum = consumption * rate;
-                    // Break computation into multiple lines
-                    computationHtml = `
-                        <div style="font-size:0.75rem; color:#4b5563; margin-top:0.2rem; line-height:1.3;">
-                            <div>Prev: ${formatNumber(previous)} kWh</div>
-                            <div>Curr: ${formatNumber(current)} kWh</div>
-                            <div>Consumption: ${formatNumber(consumption)} kWh</div>
-                            <div>Rate: ₱${formatNumber(rate)} / kWh</div>
-                            <div>Subtotal: ₱${formatNumber(subtotalNum)}</div>
-                        </div>
-                    `;
-                }
-                billsListHtml += `
-                    <div style="margin-bottom:0.7rem; border-bottom:1px solid #eef2f6; padding-bottom:0.5rem;">
-                        <div style="font-weight:800; font-size:1rem;">${escapeHtml(bill.description)}</div>
-                        <div style="font-size:0.85rem; margin-top:0.2rem;">Due: ${dueDate}</div>
-                        <div style="font-size:1rem; font-weight:700; margin-top:0.2rem;">Amount: ₱${formatNumber(bill.amount)}</div>
-                        ${computationHtml}
-                    </div>
-                `;
-            }
+            const billChunks = [clientData.bills];
+
             const signatureHtml = `
                 <div style="margin-top: 0.8rem; padding-top: 0.5rem; border-top: 1px dashed #aaa;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; font-size:0.85rem;">
@@ -218,21 +405,54 @@ async function printAllReceipts() {
                 </div>
             `;
 
-            allCards.push(`
-                <div class="receipt-card">
-                    <div class="receipt-header" style="font-size:1rem;">
-                        🧾 ${escapeHtml(clientData.name)} <span style="font-size:0.8rem;">(Rm ${escapeHtml(clientData.room)}, ${escapeHtml(clientData.level)})</span>
-                    </div>
-                    <div class="receipt-details" style="font-size:0.9rem; line-height:1.4;">
-                        ${billsListHtml}
-                        <div style="margin-top:0.6rem; font-weight:800; text-align:right; font-size:1rem; border-top:1px solid #ccc; padding-top:0.4rem;">
-                            Total: ₱${formatNumber(clientData.total)}
+            billChunks.forEach((bills, chunkIndex) => {
+                let billsListHtml = '';
+                let chunkTotal = 0;
+                for (const bill of bills) {
+                    const dueDate = formatDate(bill.dueDate);
+                    chunkTotal += bill.amount;
+                    let computationHtml = '';
+                    if (bill.ratePerKwh !== undefined && bill.ratePerKwh !== null) {
+                        const consumption = bill.consumptionKwh ?? 0;
+                        const previous = bill.previousReading ?? 0;
+                        const current = bill.currentReading ?? 0;
+                        const rate = bill.ratePerKwh;
+                        computationHtml = `
+                            <div style="font-size:0.75rem; color:#4b5563; margin-top:0.2rem; line-height:1.3;">
+                                <div>Prev: ${formatNumber(previous)} kWh</div>
+                                <div>Curr: ${formatNumber(current)} kWh</div>
+                                <div>Consumption: ${formatNumber(consumption)} kWh</div>
+                                <div>Rate: ₱${formatNumber(rate)} / kWh</div>
+                                <div>Subtotal: ₱${formatNumber(consumption * rate)}</div>
+                            </div>
+                        `;
+                    }
+                    billsListHtml += `
+                        <div style="margin-bottom:0.7rem; border-bottom:1px solid #eef2f6; padding-bottom:0.5rem;">
+                            <div style="font-weight:800; font-size:1rem;">${escapeHtml(bill.description)}</div>
+                            <div style="font-size:0.85rem; margin-top:0.2rem;">Due: ${dueDate}</div>
+                            <div style="font-size:1rem; font-weight:700; margin-top:0.2rem;">Amount: ₱${formatNumber(bill.amount)}</div>
+                            ${computationHtml}
                         </div>
+                    `;
+                }
+                const partLabel = billChunks.length > 1 ? ` · Part ${chunkIndex + 1} of ${billChunks.length}` : '';
+                allCards.push(`
+                    <div class="receipt-card">
+                        <div class="receipt-header" style="font-size:1rem;">
+                            🧾 ${escapeHtml(clientData.name)} <span style="font-size:0.8rem;">(Rm ${escapeHtml(clientData.room)}, ${escapeHtml(clientData.level)})${partLabel}</span>
+                        </div>
+                        <div class="receipt-details" style="font-size:0.9rem; line-height:1.4;">
+                            ${billsListHtml}
+                            <div style="margin-top:0.6rem; font-weight:800; text-align:right; font-size:1rem; border-top:1px solid #ccc; padding-top:0.4rem;">
+                                Receipt total: ₱${formatNumber(chunkTotal)}
+                            </div>
+                        </div>
+                        ${signatureHtml}
+                        <div class="footer" style="font-size:0.75rem;">Rentor System • Official Receipt</div>
                     </div>
-                    ${signatureHtml}
-                    <div class="footer" style="font-size:0.75rem;">Rentor System • Official Receipt</div>
-                </div>
-            `);
+                `);
+            });
         }
 
         if (!allCards.length) {
@@ -240,50 +460,31 @@ async function printAllReceipts() {
             return;
         }
 
-        const cardsPerPage = 4;   // 2 cols × 2 rows
-        let pagesHtml = '';
-        for (let i = 0; i < allCards.length; i += cardsPerPage) {
-            let pageCards = allCards.slice(i, i + cardsPerPage);
-            while (pageCards.length < cardsPerPage) {
-                pageCards.push(`
-                    <div class="receipt-card empty-card">
-                        <div class="receipt-header"> </div>
-                        <div class="receipt-details"> </div>
-                        <div class="footer"> </div>
-                    </div>
-                `);
-            }
-            pagesHtml += `
-                <div class="page-container">
-                    <div class="receipt-grid">
-                        ${pageCards.join('')}
-                    </div>
-                </div>
-            `;
-        }
+        const pagesHtml = `<div class="receipt-grid">${allCards.join('')}</div>`;
+        const pendingBillIds = shouldMarkPaid && printMode === 'all'
+            ? billsToPrint.filter(bill => bill.status === 'pending').map(bill => String(bill._id))
+            : [];
+        const pendingIdsJson = JSON.stringify(pendingBillIds).replace(/</g, '\\u003c');
+        const afterPrintHook = pendingBillIds.length
+            ? `window.addEventListener('afterprint', () => { if (window.opener && !window.opener.closed) { window.opener.focus(); window.opener.confirmPrintedBillsPaid(${pendingIdsJson}); } window.close(); }, { once: true });`
+            : '';
 
-        const monthName = new Date(parseInt(year), parseInt(month)-1).toLocaleString('default', { month: 'long', year: 'numeric' });
-        const modeText = printMode === 'paid' ? 'Paid Bills' : (shouldMarkPaid ? 'All Bills (marked paid after print)' : 'All Bills');
+        const documentTitle = options.documentTitle || `Batch Receipts - ${monthName} (${modeText})`;
         const receiptHtml = `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Batch Receipts - ${monthName} (${modeText})</title>
+    <title>${escapeHtml(documentTitle)}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { height: 100%; margin: 0; padding: 0; }
-        body { font-family: 'Inter', sans-serif; background: white; display: flex; flex-direction: column; }
+        body { font-family: 'Inter', sans-serif; background: white; }
         @page { size: portrait; margin: 0.8cm; }
-        .page-container { page-break-after: always; height: 100%; display: flex; flex-direction: column; }
-        .page-container:last-child { page-break-after: auto; }
         .receipt-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            grid-auto-rows: 1fr;
             gap: 0.6rem;
-            flex: 1;
-            min-height: 0;
-            height: 100%;
+            align-items: start;
         }
         .receipt-card {
             border: 1px solid #9ca3af;
@@ -293,12 +494,9 @@ async function printAllReceipts() {
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            overflow: hidden;
-            height: 100%;
-        }
-        .empty-card {
-            border: 1px dashed #d1d5db;
-            background: #f9fafb;
+            overflow: visible;
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
         .receipt-header {
             font-weight: 700;
@@ -306,15 +504,14 @@ async function printAllReceipts() {
             border-bottom: 1px dotted #ccc;
             margin-bottom: 0.3rem;
             padding-bottom: 0.2rem;
-            white-space: nowrap;
-            overflow-x: auto;
+            overflow-wrap: anywhere;
         }
         .receipt-details {
             font-size: 0.85rem;
             line-height: 1.3;
             margin: 0.3rem 0;
             flex: 1;
-            overflow-y: auto;
+            overflow: visible;
         }
         .footer {
             font-size: 0.7rem;
@@ -324,7 +521,6 @@ async function printAllReceipts() {
         }
         @media print {
             .receipt-card { border: 1px solid #aaa; }
-            .empty-card { border: 1px solid #ddd; background: white; }
             .no-print { display: none; }
         }
     </style>
@@ -334,21 +530,85 @@ async function printAllReceipts() {
     <div class="no-print" style="text-align:center; margin:1rem;">
         <button onclick="window.print()">🖨️ Print</button>
     </div>
-    <script>window.onload = () => { window.print(); };<\/script>
+    <script>${afterPrintHook} window.onload = () => { window.print(); };<\/script>
 </body>
 </html>`;
-        const win = window.open();
+        const win = window.open('', '_blank');
+        if (!win) {
+            alert('Allow pop-ups to open the print preview.');
+            return;
+        }
         win.document.write(receiptHtml);
         win.document.close();
 
-        if (shouldMarkPaid && printMode === 'all') {
-            setTimeout(() => { showSection('bills'); }, 2000);
-        }
     } catch (err) {
         console.error(err);
         alert('Print failed: ' + err.message);
     }
 }
+
+function getBillClientId(bill) {
+    return String(bill?.clientId?._id || bill?.clientId || '');
+}
+
+function printSelectedBills() {
+    const bills = allBills.filter(bill => selectedBillIds.has(String(bill._id)));
+    return printAllReceipts({
+        bills,
+        title: 'Selected bills',
+        documentTitle: `Selected Bill Receipts (${bills.length})`
+    });
+}
+
+function printReceipt(clientId, clientName, displayedBills = null) {
+    const bills = Array.isArray(displayedBills)
+        ? displayedBills
+        : allBills.filter(bill => getBillClientId(bill) === String(clientId));
+    return printAllReceipts({
+        bills,
+        title: `${clientName} bills`,
+        documentTitle: `${clientName} - Bill Receipts`
+    });
+}
+
+async function confirmPrintedBillsPaid(billIds) {
+    const ids = [...new Set((billIds || []).map(String))];
+    if (!ids.length) return;
+    const confirmed = await confirmDialog({
+        title: 'Mark printed bills as paid?',
+        message: `The print dialog has closed. Confirm that ${ids.length} bill${ids.length === 1 ? ' was' : 's were'} printed successfully.`,
+        confirmLabel: 'Mark as paid',
+        icon: 'fa-check'
+    });
+    if (!confirmed) return;
+    let updatedCount = 0;
+    const failedIds = [];
+    try {
+        for (const billId of ids) {
+            const response = await fetch(`/api/bills/${billId}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
+            if (!response.ok) {
+                failedIds.push(billId);
+            } else {
+                updatedCount++;
+            }
+        }
+        await loadData();
+        await showSection('bills');
+        if (failedIds.length) {
+            showToast(`${updatedCount} bill${updatedCount === 1 ? '' : 's'} updated; ${failedIds.length} could not be updated.`, 'error');
+        } else {
+            alert(`${updatedCount} printed bill${updatedCount === 1 ? '' : 's'} marked as paid`);
+        }
+    } catch (error) {
+        await loadData().catch(() => {});
+        await showSection('bills');
+        showToast(error.message, 'error');
+    }
+}
+
+window.printSelectedBills = printSelectedBills;
+window.printReceipt = printReceipt;
+window.confirmPrintedBillsPaid = confirmPrintedBillsPaid;
 function renderDashboard(container) {
     const pending = allBills.filter(b => b.status === 'pending').length;
     const paid = allBills.filter(b => b.status === 'paid').length;
@@ -436,11 +696,18 @@ let billsFilter = { search: '', status: 'all', category: 'all' };
 const BILLS_PAGE_SIZE = 8;
 let billsLoadedCount = BILLS_PAGE_SIZE;
 let billsFullClients = [];
+const selectedBillIds = new Set();
 
 async function renderBills(container) {
     if (!allBills.length) {
+        selectedBillIds.clear();
         container.innerHTML = `<div class="card"><div class="card-body"><div class="empty-state">📭 No bills found.</div></div></div>`;
         return;
+    }
+
+    const availableBillIds = new Set(allBills.map(bill => String(bill._id)));
+    for (const billId of selectedBillIds) {
+        if (!availableBillIds.has(billId)) selectedBillIds.delete(billId);
     }
 
     // Extract categories for filter
@@ -487,17 +754,17 @@ async function renderBills(container) {
     const filterBarHtml = `<div class="filter-bar-modern" style="background: white; padding: 0.8rem 1rem; border-radius: 24px; margin-bottom: 1.2rem; border:1px solid #eef2f6;">
         <div class="filter-group filter-search" style="flex:2;">
             <i class="fas fa-search search-icon"></i>
-            <input type="text" id="billsSearchInput" placeholder="Search tenant or bill..." value="${escapeHtml(billsFilter.search)}" style="font-size:0.85rem;">
+            <input type="text" id="billsSearchInput" aria-label="Search bills" placeholder="Search tenant or bill..." value="${escapeHtml(billsFilter.search)}" style="font-size:0.85rem;">
         </div>
         <div class="filter-group">
-            <select id="billsStatusFilter">
+            <select id="billsStatusFilter" aria-label="Filter bills by status">
                 <option value="all" ${billsFilter.status === 'all' ? 'selected' : ''}>All status</option>
                 <option value="pending" ${billsFilter.status === 'pending' ? 'selected' : ''}>Pending</option>
                 <option value="paid" ${billsFilter.status === 'paid' ? 'selected' : ''}>Paid</option>
             </select>
         </div>
         <div class="filter-group">
-            <select id="billsCategoryFilter">
+            <select id="billsCategoryFilter" aria-label="Filter bills by category">
                 <option value="all" ${billsFilter.category === 'all' ? 'selected' : ''}>All categories</option>
                 ${categories.map(cat => `<option value="${escapeHtml(cat)}" ${billsFilter.category === cat ? 'selected' : ''}>${escapeHtml(cat)}</option>`).join('')}
             </select>
@@ -510,45 +777,69 @@ if (currentUser.role === 'admin' || currentUser.role === 'special') {
     batchPrintButton = `
         <div style="display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap; background: transparent; padding: 0;">
             <div style="min-width: 130px;">
-                <label style="font-size: 0.7rem; font-weight: 500; color: #64748b; letter-spacing: 0.3px; margin-bottom: 0.2rem; display: block;">Month</label>
+                <label for="printMonth" style="font-size: 0.7rem; font-weight: 500; color: #64748b; letter-spacing: 0.3px; margin-bottom: 0.2rem; display: block;">Month</label>
                 <input type="month" id="printMonth" value="${new Date().toISOString().slice(0,7)}" style="margin:0; padding: 0.45rem 0.8rem; border-radius: 32px; border: 1px solid #e2e8f0; background: white; font-size: 0.85rem;">
             </div>
             <div>
                 <label style="font-size: 0.7rem; font-weight: 500; color: #64748b; letter-spacing: 0.3px; margin-bottom: 0.2rem; display: block;">Print mode</label>
-                <div style="display: flex; gap: 1rem;">
+                <div role="radiogroup" aria-label="Print mode" style="display: flex; gap: 1rem;">
                     <label style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.85rem;"><input type="radio" name="printMode" value="paid" checked style="margin:0;"> Only paid</label>
                     <label style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.85rem;"><input type="radio" name="printMode" value="all"> All bills</label>
                 </div>
             </div>
             <div style="display: flex; align-items: center;">
                 <label style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.85rem;">
-                    <input type="checkbox" id="markPaidAfterPrint" style="margin:0;"> Mark as paid after printing
+                    <input type="checkbox" id="markPaidAfterPrint" style="margin:0;"> Ask to mark as paid after printing
                 </label>
             </div>
-            <button class="primary-btn" onclick="printAllReceipts()" style="padding: 0.4rem 1rem; background: #2c3e8f; border-radius: 32px; font-size: 0.85rem;"><i class="fas fa-print"></i> Print</button>
+            <button class="primary-btn" onclick="printAllReceipts()" style="padding: 0.4rem 1rem; background: #2c3e8f; border-radius: 32px; font-size: 0.85rem;"><i class="fas fa-print"></i> Print month</button>
         </div>
     `;
 }
-    if (billsFullClients.length === 0) {
-        container.innerHTML = batchPrintButton + filterBarHtml + `<div class="empty-state">🔍 No bills match your filters.</div>`;
-        attachFilterEvents();
-        return;
-    }
-
     const resultsHtml = `
-        <div class="bills-results-bar">
+        <div class="bills-results-bar" id="billsResultsSummary" tabindex="-1">
             <span>Showing <strong>${clientsToShow.length}</strong> of ${billsFullClients.length} tenants</span>
             <span><strong>${filtered.length}</strong> bill${filtered.length === 1 ? '' : 's'}</span>
         </div>
     `;
 
+    const visibleBillIds = clientsToShow.flatMap(client => client.bills.map(bill => String(bill._id)));
+    const allVisibleSelected = visibleBillIds.length > 0 && visibleBillIds.every(id => selectedBillIds.has(id));
+    const selectionHtml = `
+        <div class="bill-selection-toolbar">
+            <label class="selection-toggle">
+                <input type="checkbox" id="selectVisibleBills" ${allVisibleSelected ? 'checked' : ''} ${visibleBillIds.length ? '' : 'disabled'}>
+                <span>Select visible</span>
+            </label>
+            <div class="selection-actions">
+                <span id="selectedBillsCount">${selectedBillIds.size} selected</span>
+                <button class="small" id="clearBillSelection" ${selectedBillIds.size ? '' : 'disabled'}>Clear</button>
+                <button class="primary-btn" id="printSelectedBillsBtn" ${selectedBillIds.size ? '' : 'disabled'}><i class="fas fa-print"></i> Print selected</button>
+            </div>
+        </div>
+    `;
+
+    if (billsFullClients.length === 0) {
+        const activeSelection = selectedBillIds.size ? selectionHtml : '';
+        container.innerHTML = batchPrintButton + filterBarHtml + resultsHtml + activeSelection + `<div class="empty-state">No bills match your filters.</div>`;
+        attachFilterEvents();
+        if (selectedBillIds.size) attachBillSelectionEvents([]);
+        return;
+    }
+
     let clientsHtml = '';
     for (const clientData of clientsToShow) {
         const sortedBills = [...clientData.bills].sort((a,b) => new Date(b.dueDate) - new Date(a.dueDate));
+        const clientBillIds = sortedBills.map(bill => String(bill._id));
+        const clientSelected = clientBillIds.length > 0 && clientBillIds.every(id => selectedBillIds.has(id));
         clientsHtml += `
             <div class="bill-client-card">
                 <div class="bill-client-header">
                     <div class="client-identity">
+                        <label class="bill-select-control client-select-control" title="Select displayed tenant bills">
+                            <input type="checkbox" class="client-bill-selector" data-client-id="${clientData.clientId}" ${clientSelected ? 'checked' : ''}>
+                            <span class="sr-only">Select all bills for ${escapeHtml(clientData.clientName)}</span>
+                        </label>
                         <i class="fas fa-user-circle"></i>
                         <div>
                             <strong>${escapeHtml(clientData.clientName)}</strong>
@@ -558,7 +849,7 @@ if (currentUser.role === 'admin' || currentUser.role === 'special') {
                     <div class="client-summary">
                         <span>Total: <strong>₱${formatNumber(clientData.totalAmount)}</strong></span>
                         ${(currentUser.role === 'admin' || currentUser.role === 'special') ? 
-                            `<button class="small" onclick="printReceipt('${clientData.clientId}', '${escapeHtml(clientData.clientName)}')"><i class="fas fa-print"></i> Print</button>` : ''}
+                            `<button class="small print-client-bills" data-client-id="${clientData.clientId}"><i class="fas fa-print"></i> Print</button>` : ''}
                     </div>
                 </div>
                 <div class="bill-records">
@@ -572,6 +863,10 @@ if (currentUser.role === 'admin' || currentUser.role === 'special') {
             clientsHtml += `
                     <div class="bill-record-row">
                         <div class="bill-record-title">
+                            <label class="bill-select-control">
+                                <input type="checkbox" class="bill-select-checkbox" value="${bill._id}" ${selectedBillIds.has(String(bill._id)) ? 'checked' : ''}>
+                                <span class="sr-only">Select ${escapeHtml(bill.description)}</span>
+                            </label>
                             <span class="bill-record-icon"><i class="fas fa-file-invoice"></i></span>
                             <div>
                                 <strong>${escapeHtml(bill.description)}</strong>
@@ -605,7 +900,7 @@ if (currentUser.role === 'admin' || currentUser.role === 'special') {
         </div>`;
     }
 
-    container.innerHTML = batchPrintButton + filterBarHtml + resultsHtml + clientsHtml + moreHtml;
+    container.innerHTML = batchPrintButton + filterBarHtml + resultsHtml + selectionHtml + clientsHtml + moreHtml;
 
     // Attach load more handler
     const loadMoreBtn = document.getElementById('loadMoreBtn');
@@ -613,10 +908,88 @@ if (currentUser.role === 'admin' || currentUser.role === 'special') {
         loadMoreBtn.onclick = () => {
             billsLoadedCount += BILLS_PAGE_SIZE;
             renderBills(container);
+            (document.getElementById('loadMoreBtn') || document.getElementById('billsResultsSummary'))?.focus();
         };
     }
 
     attachFilterEvents();
+    attachBillSelectionEvents(visibleBillIds);
+}
+
+function attachBillSelectionEvents(visibleBillIds) {
+    document.querySelectorAll('.bill-select-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) selectedBillIds.add(String(checkbox.value));
+            else selectedBillIds.delete(String(checkbox.value));
+            syncBillSelectionUI(visibleBillIds);
+        });
+    });
+
+    document.querySelectorAll('.client-bill-selector').forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+            const group = billsFullClients.find(client => String(client.clientId) === String(checkbox.dataset.clientId));
+            for (const bill of group?.bills || []) {
+                if (checkbox.checked) selectedBillIds.add(String(bill._id));
+                else selectedBillIds.delete(String(bill._id));
+            }
+            syncBillSelectionUI(visibleBillIds);
+        });
+    });
+
+    document.getElementById('selectVisibleBills')?.addEventListener('change', event => {
+        for (const billId of visibleBillIds) {
+            if (event.target.checked) selectedBillIds.add(billId);
+            else selectedBillIds.delete(billId);
+        }
+        syncBillSelectionUI(visibleBillIds);
+    });
+
+    document.getElementById('clearBillSelection')?.addEventListener('click', () => {
+        selectedBillIds.clear();
+        if (visibleBillIds.length) syncBillSelectionUI(visibleBillIds);
+        else {
+            renderBills(document.getElementById('mainContent'));
+            document.getElementById('billsSearchInput')?.focus();
+        }
+    });
+
+    document.getElementById('printSelectedBillsBtn')?.addEventListener('click', printSelectedBills);
+    document.querySelectorAll('.print-client-bills').forEach(button => {
+        button.addEventListener('click', () => {
+            const group = billsFullClients.find(client => String(client.clientId) === String(button.dataset.clientId));
+            if (group) printReceipt(group.clientId, group.clientName, group.bills);
+        });
+    });
+
+    syncBillSelectionUI(visibleBillIds);
+}
+
+function syncBillSelectionUI(visibleBillIds) {
+    document.querySelectorAll('.bill-select-checkbox').forEach(checkbox => {
+        checkbox.checked = selectedBillIds.has(String(checkbox.value));
+    });
+
+    document.querySelectorAll('.client-bill-selector').forEach(checkbox => {
+        const group = billsFullClients.find(client => String(client.clientId) === String(checkbox.dataset.clientId));
+        const ids = (group?.bills || []).map(bill => String(bill._id));
+        const selectedCount = ids.filter(id => selectedBillIds.has(id)).length;
+        checkbox.checked = ids.length > 0 && selectedCount === ids.length;
+        checkbox.indeterminate = selectedCount > 0 && selectedCount < ids.length;
+    });
+
+    const visibleSelectedCount = visibleBillIds.filter(id => selectedBillIds.has(id)).length;
+    const selectVisible = document.getElementById('selectVisibleBills');
+    if (selectVisible) {
+        selectVisible.checked = visibleBillIds.length > 0 && visibleSelectedCount === visibleBillIds.length;
+        selectVisible.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleBillIds.length;
+    }
+
+    const count = document.getElementById('selectedBillsCount');
+    if (count) count.textContent = `${selectedBillIds.size} selected`;
+    const clearButton = document.getElementById('clearBillSelection');
+    const printButton = document.getElementById('printSelectedBillsBtn');
+    if (clearButton) clearButton.disabled = selectedBillIds.size === 0;
+    if (printButton) printButton.disabled = selectedBillIds.size === 0;
 }
 
 
@@ -624,29 +997,66 @@ if (currentUser.role === 'admin' || currentUser.role === 'special') {
 
     function attachFilterEvents() {
         const searchInput = document.getElementById('billsSearchInput'), statusSelect = document.getElementById('billsStatusFilter'), categorySelect = document.getElementById('billsCategoryFilter'), resetBtn = document.getElementById('billsResetFiltersBtn');
-        const update = (restoreSearchFocus = false) => {
+        const update = (focusId, restoreCaret = false) => {
+            const selectionStart = restoreCaret ? searchInput?.selectionStart : null;
+            const selectionEnd = restoreCaret ? searchInput?.selectionEnd : null;
             billsFilter.search = searchInput ? searchInput.value : '';
             billsFilter.status = statusSelect ? statusSelect.value : 'all';
             billsFilter.category = categorySelect ? categorySelect.value : 'all';
             billsLoadedCount = BILLS_PAGE_SIZE;
             renderBills(document.getElementById('mainContent'));
-            if (restoreSearchFocus) {
-                const nextSearchInput = document.getElementById('billsSearchInput');
-                nextSearchInput?.focus();
-                nextSearchInput?.setSelectionRange(nextSearchInput.value.length, nextSearchInput.value.length);
+            const nextControl = document.getElementById(focusId);
+            nextControl?.focus();
+            if (restoreCaret && nextControl?.setSelectionRange) {
+                nextControl.setSelectionRange(selectionStart ?? nextControl.value.length, selectionEnd ?? nextControl.value.length);
             }
         };
-        if (searchInput) searchInput.addEventListener('input', () => update(true));
-        if (statusSelect) statusSelect.addEventListener('change', () => update());
-        if (categorySelect) categorySelect.addEventListener('change', () => update());
+        if (searchInput) {
+            searchInput.addEventListener('input', event => {
+                if (!event.isComposing) update('billsSearchInput', true);
+            });
+            searchInput.addEventListener('compositionend', () => update('billsSearchInput', true));
+        }
+        if (statusSelect) statusSelect.addEventListener('change', () => update('billsStatusFilter'));
+        if (categorySelect) categorySelect.addEventListener('change', () => update('billsCategoryFilter'));
         if (resetBtn) resetBtn.addEventListener('click', () => {
             billsFilter = { search: '', status: 'all', category: 'all' };
             billsLoadedCount = BILLS_PAGE_SIZE;
             renderBills(document.getElementById('mainContent'));
+            document.getElementById('billsSearchInput')?.focus();
         });
     }
-    window.deleteBill = async (billId) => { if (!confirm('Delete permanently?')) return; try { await fetch(`/api/bills/${billId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); alert('Bill deleted'); await loadData(); showSection('bills'); } catch(err) { alert(err.message); } };
-    window.markPaid = async (billId) => { if (!confirm('Mark as paid?')) return; try { await fetch(`/api/bills/${billId}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } }); await loadData(); showSection('bills'); } catch(e) { alert(e.message); } };
+    window.deleteBill = async billId => {
+        const confirmed = await confirmDialog({
+            title: 'Delete this bill?',
+            message: 'This bill will be permanently removed and cannot be restored.',
+            confirmLabel: 'Delete bill',
+            variant: 'danger',
+            icon: 'fa-trash'
+        });
+        if (!confirmed) return;
+        try {
+            await fetch(`/api/bills/${billId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+            selectedBillIds.delete(String(billId));
+            alert('Bill deleted');
+            await loadData();
+            showSection('bills');
+        } catch(err) { alert(err.message); }
+    };
+    window.markPaid = async billId => {
+        const confirmed = await confirmDialog({
+            title: 'Mark bill as paid?',
+            message: 'The bill status will be updated to paid.',
+            confirmLabel: 'Mark as paid',
+            icon: 'fa-check'
+        });
+        if (!confirmed) return;
+        try {
+            await fetch(`/api/bills/${billId}/pay`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
+            await loadData();
+            showSection('bills');
+        } catch(e) { alert(e.message); }
+    };
 function renderAddBill(container) {
     const tenantOptions = allClients.filter(c => c.role === 'client').map(c => `<option value="${c._id}">${c.name} (Rm ${c.room})</option>`).join('');
     const today = new Date();
@@ -790,7 +1200,14 @@ function renderAddBill(container) {
     clearDefaultBtn.addEventListener('click', async () => {
         const clientId = tenantSelect.value, description = descInput.value.trim();
         if (!clientId || !description) return;
-        if (!confirm(`Remove saved default for "${description}"?`)) return;
+        const confirmed = await confirmDialog({
+            title: 'Remove saved amount?',
+            message: `The default amount for "${description}" will be cleared.`,
+            confirmLabel: 'Remove default',
+            variant: 'danger',
+            icon: 'fa-eraser'
+        });
+        if (!confirmed) return;
         try {
             await apiDelete(`/api/bill-defaults/${clientId}/${encodeURIComponent(description)}`);
             amountInput.value = '';
@@ -874,7 +1291,14 @@ function renderAddBill(container) {
             document.querySelectorAll('.delete-recurring').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     const id = btn.getAttribute('data-id');
-                    if (!confirm('Delete this recurring schedule?')) return;
+                    const confirmed = await confirmDialog({
+                        title: 'Delete recurring bill?',
+                        message: 'Future bills will no longer be generated from this schedule.',
+                        confirmLabel: 'Delete schedule',
+                        variant: 'danger',
+                        icon: 'fa-calendar-xmark'
+                    });
+                    if (!confirmed) return;
                     try {
                         await apiDelete(`/api/recurring-schedules/${id}`);
                         loadSchedules();
@@ -972,7 +1396,28 @@ function renderAddBill(container) {
     let globalTemplates = [];
     const templatesListDiv = document.getElementById('templatesList');
     async function loadGlobalTemplates() { try { globalTemplates = await apiGet('/api/bill-templates'); renderTemplatesList(); updateTemplateDropdown(); } catch(e) { console.warn(e); } }
-    function renderTemplatesList() { templatesListDiv.innerHTML = globalTemplates.map(t => `<div data-id="${t._id}" style="border-bottom:1px solid #eee; padding:0.4rem 0; display:flex; justify-content:space-between;"><div><strong>${escapeHtml(t.name)}</strong><br>${escapeHtml(t.description)}<br>Rate: ₱${formatNumber(t.ratePerUnit)}/unit, Due: ${t.dueDay}</div><button class="small delete-template" data-id="${t._id}" style="background:#fee2e2;">Delete</button></div>`).join(''); document.querySelectorAll('.delete-template').forEach(btn => btn.addEventListener('click', async () => { if (confirm('Delete?')) { await apiDelete(`/api/bill-templates/${btn.getAttribute('data-id')}`); loadGlobalTemplates(); } })); }
+    function renderTemplatesList() {
+        templatesListDiv.innerHTML = globalTemplates.map(t => `
+            <div data-id="${t._id}" style="border-bottom:1px solid #eee; padding:0.4rem 0; display:flex; justify-content:space-between;">
+                <div><strong>${escapeHtml(t.name)}</strong><br>${escapeHtml(t.description)}<br>Rate: ₱${formatNumber(t.ratePerUnit)}/unit, Due: ${t.dueDay}</div>
+                <button class="small delete-template" data-id="${t._id}" style="background:#fee2e2;">Delete</button>
+            </div>
+        `).join('');
+        document.querySelectorAll('.delete-template').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const confirmed = await confirmDialog({
+                    title: 'Delete bill template?',
+                    message: 'This template will be permanently removed.',
+                    confirmLabel: 'Delete template',
+                    variant: 'danger',
+                    icon: 'fa-trash'
+                });
+                if (!confirmed) return;
+                await apiDelete(`/api/bill-templates/${btn.getAttribute('data-id')}`);
+                loadGlobalTemplates();
+            });
+        });
+    }
     function updateTemplateDropdown() { const meterTemplateSelect = document.getElementById('meterTemplateSelect'); meterTemplateSelect.innerHTML = '<option value="">-- Select --</option>' + globalTemplates.map(t => `<option value="${t._id}" data-rate="${t.ratePerUnit}" data-min="${t.minimumAmount || ''}" data-due="${t.dueDay}">${t.name}</option>`).join(''); }
     document.getElementById('saveTemplateBtn')?.addEventListener('click', async () => {
         const payload = {
@@ -1111,7 +1556,13 @@ function renderAddBill(container) {
     updatePrevBtn.addEventListener('click', async () => {
         const clientId = tenantSelect.value, description = prevDescInput.value.trim(), newReading = parseFloat(prevValueInput.value);
         if (!clientId || !description || isNaN(newReading)) { alert('Select tenant, description, and reading.'); return; }
-        if (!confirm(`Set previous reading for "${description}" to ${newReading} kWh?`)) return;
+        const confirmed = await confirmDialog({
+            title: 'Update previous reading?',
+            message: `${description} will be set to ${newReading} kWh.`,
+            confirmLabel: 'Update reading',
+            icon: 'fa-gauge-high'
+        });
+        if (!confirmed) return;
         try {
             await apiPost('/api/meters/set-previous-reading', { clientId, description, reading: newReading });
             alert('Updated');
@@ -1170,9 +1621,17 @@ function renderAddBill(container) {
         // Delete user
         document.querySelectorAll('.delete-user-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
-const userId = btn.getAttribute('data-id');
-const userName = btn.getAttribute('data-name');
-if (!confirm(`Delete ${userName} permanently? This will also delete ALL their bills, messages, meter readings, and settings.`)) return;                try {
+                const userId = btn.getAttribute('data-id');
+                const userName = btn.getAttribute('data-name');
+                const confirmed = await confirmDialog({
+                    title: `Delete ${userName}?`,
+                    message: 'Their bills, messages, meter readings, and settings will also be permanently deleted.',
+                    confirmLabel: 'Delete user',
+                    variant: 'danger',
+                    icon: 'fa-user-xmark'
+                });
+                if (!confirmed) return;
+                try {
                     await apiDelete(`/api/users/${userId}`);
                     alert('User deleted');
                     await loadData();
@@ -1180,20 +1639,38 @@ if (!confirm(`Delete ${userName} permanently? This will also delete ALL their bi
                 } catch(err) { alert(err.message); }
             });
         });
-        // Edit user (simple prompt)
+        // Edit user
         document.querySelectorAll('.edit-user-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const userId = btn.getAttribute('data-id');
                 const curName = btn.getAttribute('data-name');
                 const curRoom = btn.getAttribute('data-room');
                 const curLevel = btn.getAttribute('data-level');
                 const curDue = btn.getAttribute('data-due');
-                const newName = prompt('New name:', curName);
-                if (!newName) return;
-                const newRoom = prompt('Room:', curRoom) || '';
-                const newLevel = prompt('Level:', curLevel) || '';
-                const newDue = prompt('Due day (1-31):', curDue) || null;
-                apiPost(`/api/users/${userId}`, { name: newName, room: newRoom, level: newLevel, dueDay: newDue ? parseInt(newDue) : null }).then(async () => { await loadData(); showSection('users'); }).catch(err => alert(err.message));
+                const values = await formDialog({
+                    title: 'Edit tenant details',
+                    message: 'Update the tenant information below.',
+                    submitLabel: 'Save changes',
+                    icon: 'fa-user-pen',
+                    fields: [
+                        { name: 'name', label: 'Full name', value: curName, required: true },
+                        { name: 'room', label: 'Room', value: curRoom, placeholder: 'e.g. 204' },
+                        { name: 'level', label: 'Level', value: curLevel, placeholder: 'e.g. 2nd' },
+                        { name: 'dueDay', label: 'Due day', value: curDue, type: 'number', min: 1, max: 31, placeholder: '1-31' }
+                    ]
+                });
+                if (!values) return;
+                try {
+                    await apiPost(`/api/users/${userId}`, {
+                        name: values.name.trim(),
+                        room: values.room.trim(),
+                        level: values.level.trim(),
+                        dueDay: values.dueDay ? parseInt(values.dueDay) : null
+                    });
+                    alert('Tenant details updated');
+                    await loadData();
+                    showSection('users');
+                } catch(err) { alert(err.message); }
             });
         });
         // Register tenant
@@ -1493,17 +1970,23 @@ async function openChat(userId, userName) {
         chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
 
         deleteBtn.onclick = async () => {
-            if (confirm('Delete entire conversation?')) {
-                await apiDelete(`/api/messages/conversation/${userId}`);
-                alert('Conversation deleted');
-                if (chatInput) chatInput.disabled = true;
-                if (sendBtn) sendBtn.disabled = true;
-                chatMessagesDiv.innerHTML = '<div class="empty-state">Conversation deleted. Select another contact.</div>';
-                chatHeader.innerHTML = '<span>Select a contact</span>';
-                currentChatUserId = null;
-                chatView.style.display = 'none';
-                renderMessages(document.getElementById('mainContent'));
-            }
+            const confirmed = await confirmDialog({
+                title: 'Delete conversation?',
+                message: 'Every message in this conversation will be permanently removed.',
+                confirmLabel: 'Delete conversation',
+                variant: 'danger',
+                icon: 'fa-comment-slash'
+            });
+            if (!confirmed) return;
+            await apiDelete(`/api/messages/conversation/${userId}`);
+            alert('Conversation deleted');
+            if (chatInput) chatInput.disabled = true;
+            if (sendBtn) sendBtn.disabled = true;
+            chatMessagesDiv.innerHTML = '<div class="empty-state">Conversation deleted. Select another contact.</div>';
+            chatHeader.innerHTML = '<span>Select a contact</span>';
+            currentChatUserId = null;
+            chatView.style.display = 'none';
+            renderMessages(document.getElementById('mainContent'));
         };
     } catch (err) {
         chatMessagesDiv.innerHTML = '<div class="empty-state">Failed to load messages.</div>';
