@@ -13,6 +13,7 @@ const billSchema = new mongoose.Schema({
     currentReading: { type: Number, default: null },
     consumptionKwh: { type: Number, default: null },
     ratePerKwh: { type: Number, default: null },
+    measurementUnit: { type: String, trim: true, maxlength: 20, default: null },
     minimumAmount: { type: Number, default: null }
 });
 

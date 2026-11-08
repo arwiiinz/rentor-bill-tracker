@@ -313,6 +313,16 @@
     const year = d.getFullYear();
     return `${month}/${day}/${year}`;
 }
+
+function getMeasurementUnit(source) {
+    const explicitUnit = String(source?.measurementUnit || '').trim();
+    if (explicitUnit) return explicitUnit;
+    const context = `${source?.name || ''} ${source?.description || ''}`.toLowerCase();
+    if (/water|maynilad|manila water/.test(context)) return 'm³';
+    if (/electric|power|meralco/.test(context)) return 'kWh';
+    return 'unit';
+}
+
 async function printAllReceipts(options = {}) {
     try {
         const suppliedBills = Array.isArray(options.bills) ? options.bills : null;
@@ -417,12 +427,13 @@ async function printAllReceipts(options = {}) {
                         const previous = bill.previousReading ?? 0;
                         const current = bill.currentReading ?? 0;
                         const rate = bill.ratePerKwh;
+                        const unit = escapeHtml(getMeasurementUnit(bill));
                         computationHtml = `
                             <div style="font-size:0.75rem; color:#4b5563; margin-top:0.2rem; line-height:1.3;">
-                                <div>Prev: ${formatNumber(previous)} kWh</div>
-                                <div>Curr: ${formatNumber(current)} kWh</div>
-                                <div>Consumption: ${formatNumber(consumption)} kWh</div>
-                                <div>Rate: ₱${formatNumber(rate)} / kWh</div>
+                                <div>Prev: ${formatNumber(previous)} ${unit}</div>
+                                <div>Curr: ${formatNumber(current)} ${unit}</div>
+                                <div>Consumption: ${formatNumber(consumption)} ${unit}</div>
+                                <div>Rate: ₱${formatNumber(rate)} / ${unit}</div>
                                 <div>Subtotal: ₱${formatNumber(consumption * rate)}</div>
                             </div>
                         `;
@@ -1351,7 +1362,8 @@ function renderAddBill(container) {
                 <form id="meterBillForm">
                     <div style="margin-bottom:0.5rem;"><strong>For tenant: <span id="meterTenantName">${allClients.find(c=>c._id===tenantSelect.value)?.name || ''}</span></strong></div>
                     <select id="meterTemplateSelect" required><option value="">-- Select template --</option></select>
-                    <input type="number" id="meterReading" placeholder="Current Reading (units)" step="0.01" required>
+                    <div id="meterUnitHint" class="measurement-unit-hint">Select a template to see its measurement unit.</div>
+                    <input type="number" id="meterReading" placeholder="Current reading" step="0.01" required>
                     <div class="form-row form-row-thirds">
                         <input type="number" id="meterRate" placeholder="Rate per unit (₱)" step="0.01" required style="flex:1;">
                         <input type="number" id="meterMin" placeholder="Minimum amount (₱)" step="0.01" style="flex:1;">
@@ -1381,13 +1393,20 @@ function renderAddBill(container) {
             <div class="card-body">
                  <div class="template-form-grid">
                     <input type="text" id="templateName" placeholder="Name" required>
-                    <input type="text" id="templateDesc" placeholder="Description" required>
-                    <input type="number" id="templateRate" placeholder="Rate/unit" step="0.01" required>
-                    <input type="number" id="templateMin" placeholder="Min amount" step="0.01">
+                     <input type="text" id="templateDesc" placeholder="Description" required>
+                     <input type="number" id="templateRate" placeholder="Rate/unit" step="0.01" required>
+                     <input type="text" id="templateUnit" placeholder="Measured in (e.g. kWh or m³)" list="measurementUnitOptions" maxlength="20" required>
+                     <input type="number" id="templateMin" placeholder="Min amount" step="0.01">
                     <input type="number" id="templateDueDay" placeholder="Due day" min="1" max="31" required>
                     <button id="saveTemplateBtn" class="primary-btn">Save</button>
-                </div>
-                <div id="templatesList"></div>
+                 </div>
+                 <datalist id="measurementUnitOptions">
+                     <option value="kWh">Electricity</option>
+                     <option value="m³">Water</option>
+                     <option value="L">Liters</option>
+                     <option value="unit">General units</option>
+                 </datalist>
+                 <div id="templatesList"></div>
             </div>
         </div>
     `;
@@ -1399,7 +1418,7 @@ function renderAddBill(container) {
     function renderTemplatesList() {
         templatesListDiv.innerHTML = globalTemplates.map(t => `
             <div data-id="${t._id}" style="border-bottom:1px solid #eee; padding:0.4rem 0; display:flex; justify-content:space-between;">
-                <div><strong>${escapeHtml(t.name)}</strong><br>${escapeHtml(t.description)}<br>Rate: ₱${formatNumber(t.ratePerUnit)}/unit, Due: ${t.dueDay}</div>
+                <div><strong>${escapeHtml(t.name)}</strong><br>${escapeHtml(t.description)}<br>Rate: ₱${formatNumber(t.ratePerUnit)} / ${escapeHtml(getMeasurementUnit(t))}, Due: ${t.dueDay}</div>
                 <button class="small delete-template" data-id="${t._id}" style="background:#fee2e2;">Delete</button>
             </div>
         `).join('');
@@ -1418,22 +1437,24 @@ function renderAddBill(container) {
             });
         });
     }
-    function updateTemplateDropdown() { const meterTemplateSelect = document.getElementById('meterTemplateSelect'); meterTemplateSelect.innerHTML = '<option value="">-- Select --</option>' + globalTemplates.map(t => `<option value="${t._id}" data-rate="${t.ratePerUnit}" data-min="${t.minimumAmount || ''}" data-due="${t.dueDay}">${t.name}</option>`).join(''); }
+    function updateTemplateDropdown() { const meterTemplateSelect = document.getElementById('meterTemplateSelect'); meterTemplateSelect.innerHTML = '<option value="">-- Select --</option>' + globalTemplates.map(t => `<option value="${t._id}" data-rate="${t.ratePerUnit}" data-min="${t.minimumAmount || ''}" data-due="${t.dueDay}" data-unit="${escapeHtml(getMeasurementUnit(t))}">${escapeHtml(t.name)}</option>`).join(''); }
     document.getElementById('saveTemplateBtn')?.addEventListener('click', async () => {
         const payload = {
             name: document.getElementById('templateName').value.trim(),
             description: document.getElementById('templateDesc').value.trim(),
             ratePerUnit: parseFloat(document.getElementById('templateRate').value),
+            measurementUnit: document.getElementById('templateUnit').value.trim(),
             minimumAmount: parseFloat(document.getElementById('templateMin').value) || null,
             dueDay: parseInt(document.getElementById('templateDueDay').value)
         };
-        if (!payload.name || !payload.description || isNaN(payload.ratePerUnit) || !payload.dueDay) { alert('Fill required'); return; }
+        if (!payload.name || !payload.description || isNaN(payload.ratePerUnit) || !payload.measurementUnit || !payload.dueDay) { alert('Fill required'); return; }
         try {
             await apiPost('/api/bill-templates', payload);
             alert('Template saved');
             document.getElementById('templateName').value = '';
             document.getElementById('templateDesc').value = '';
             document.getElementById('templateRate').value = '';
+            document.getElementById('templateUnit').value = '';
             document.getElementById('templateMin').value = '';
             document.getElementById('templateDueDay').value = '';
             loadGlobalTemplates();
@@ -1448,6 +1469,7 @@ function renderAddBill(container) {
     const meterDueDay = document.getElementById('meterDueDay');
     const meterReadingInput = document.getElementById('meterReading');
     const prevDisplay = document.getElementById('prevReadingDisplay');
+    const meterUnitHint = document.getElementById('meterUnitHint');
     const meterTenantNameSpan = document.getElementById('meterTenantName');
 
     tenantSelect.addEventListener('change', () => {
@@ -1459,16 +1481,24 @@ function renderAddBill(container) {
     function onTemplateChange() {
         const selected = meterTemplateSelect.options[meterTemplateSelect.selectedIndex];
         if (selected && selected.value) {
+            const selectedTemplate = globalTemplates.find(t => t._id === selected.value);
+            const unit = getMeasurementUnit(selectedTemplate);
             meterRate.value = selected.getAttribute('data-rate') || '';
             meterMin.value = selected.getAttribute('data-min') || '';
             meterDueDay.value = selected.getAttribute('data-due') || '';
-            const templateDesc = globalTemplates.find(t => t._id === selected.value)?.description || '';
+            meterReadingInput.placeholder = `Current reading (${unit})`;
+            meterRate.placeholder = `Rate per ${unit} (₱)`;
+            meterUnitHint.textContent = `Measured in ${unit}`;
+            const templateDesc = selectedTemplate?.description || '';
             if (templateDesc) {
                 document.getElementById('prevReadingDesc').value = templateDesc;
                 fetchCurrentPreviousReading();
             }
         } else {
             meterRate.value = ''; meterMin.value = ''; meterDueDay.value = '';
+            meterReadingInput.placeholder = 'Current reading';
+            meterRate.placeholder = 'Rate per unit (₱)';
+            meterUnitHint.textContent = 'Select a template to see its measurement unit.';
         }
         fetchLastReading();
     }
@@ -1480,7 +1510,7 @@ function renderAddBill(container) {
         if (template) {
             try {
                 const res = await apiGet(`/api/meters/last-reading?clientId=${clientId}&description=${encodeURIComponent(template.description)}`);
-                prevDisplay.innerHTML = `Previous reading: ${formatNumber(res.reading)} units`;
+                prevDisplay.textContent = `Previous reading: ${formatNumber(res.reading)} ${getMeasurementUnit(template)}`;
             } catch(e) { prevDisplay.innerHTML = ''; }
         }
     }
@@ -1516,6 +1546,7 @@ function renderAddBill(container) {
                 meterDescription: meterDescription,    // for the reading lookup
                 currentReading: parseFloat(meterReadingInput.value),
                 ratePerKwh: parseFloat(meterRate.value),
+                measurementUnit: getMeasurementUnit(selectedTemplate),
                 minimumAmount: parseFloat(meterMin.value) || null,
                 dueDate: dueDate.toISOString().split('T')[0],
                 targetMonth: targetMonth
@@ -1548,7 +1579,9 @@ function renderAddBill(container) {
         if (!clientId || !description) { currentPrevInfo.innerHTML = ''; return; }
         try {
             const res = await apiGet(`/api/meters/last-reading?clientId=${clientId}&description=${encodeURIComponent(description)}`);
-            currentPrevInfo.innerHTML = `📌 Current previous reading for <strong>${escapeHtml(description)}</strong>: ${formatNumber(res.reading)} kWh`;
+            const template = globalTemplates.find(t => t.description === description);
+            const unit = escapeHtml(getMeasurementUnit(template || { description }));
+            currentPrevInfo.innerHTML = `Current previous reading for <strong>${escapeHtml(description)}</strong>: ${formatNumber(res.reading)} ${unit}`;
             prevValueInput.value = res.reading;
         } catch(e) { currentPrevInfo.innerHTML = '❌ Failed to load.'; }
     }
@@ -1556,9 +1589,11 @@ function renderAddBill(container) {
     updatePrevBtn.addEventListener('click', async () => {
         const clientId = tenantSelect.value, description = prevDescInput.value.trim(), newReading = parseFloat(prevValueInput.value);
         if (!clientId || !description || isNaN(newReading)) { alert('Select tenant, description, and reading.'); return; }
+        const template = globalTemplates.find(t => t.description === description);
+        const unit = getMeasurementUnit(template || { description });
         const confirmed = await confirmDialog({
             title: 'Update previous reading?',
-            message: `${description} will be set to ${newReading} kWh.`,
+            message: `${description} will be set to ${newReading} ${unit}.`,
             confirmLabel: 'Update reading',
             icon: 'fa-gauge-high'
         });
@@ -2042,6 +2077,7 @@ async function showSection(section) {
   window.showComputation = async (billId) => {
     try {
         const bill = await apiGet(`/api/bills/${billId}`);
+        const unit = escapeHtml(getMeasurementUnit(bill));
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.id = 'computationModal';
@@ -2050,10 +2086,10 @@ async function showSection(section) {
                 <h3>Bill Computation</h3>
                 <table style="width:100%;">
                     <tr><td>Description:</td><td>${escapeHtml(bill.description)}</td></tr>
-                    <tr><td>Previous Reading:</td><td>${formatNumber(bill.previousReading)} kWh</td></tr>
-                    <tr><td>Current Reading:</td><td>${formatNumber(bill.currentReading)} kWh</td></tr>
-                    <tr><td>Consumption:</td><td>${formatNumber(bill.consumptionKwh)} kWh</td></tr>
-                    <tr><td>Rate per kWh:</td><td>₱${formatNumber(bill.ratePerKwh)}</td></tr>
+                    <tr><td>Previous Reading:</td><td>${formatNumber(bill.previousReading)} ${unit}</td></tr>
+                    <tr><td>Current Reading:</td><td>${formatNumber(bill.currentReading)} ${unit}</td></tr>
+                    <tr><td>Consumption:</td><td>${formatNumber(bill.consumptionKwh)} ${unit}</td></tr>
+                    <tr><td>Rate per ${unit}:</td><td>₱${formatNumber(bill.ratePerKwh)}</td></tr>
                     <tr><td>Subtotal:</td><td>₱${formatNumber(bill.consumptionKwh * bill.ratePerKwh)}</td></tr>
                     <tr><td>Minimum Amount:</td><td>${bill.minimumAmount ? `₱${formatNumber(bill.minimumAmount)}` : 'None'}</td></tr>
                     <tr><td style="font-weight:600;">Final Amount:</td><td style="font-weight:600;">₱${formatNumber(bill.amount)}</td></tr>

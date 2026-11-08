@@ -2183,6 +2183,13 @@ button.small:hover {
     margin: 0;
 }
 
+.measurement-unit-hint {
+    margin: -4px 0 10px;
+    color: var(--accent-dark);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
 .user-item {
     display: flex;
     align-items: center;

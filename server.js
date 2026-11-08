@@ -372,13 +372,14 @@ app.get('/api/bill-templates', authMiddleware, async (req, res) => {
 // Create a new template
 app.post('/api/bill-templates', authMiddleware, async (req, res) => {
     try {
-        const { name, description, ratePerUnit, minimumAmount, dueDay } = req.body;
+        const { name, description, ratePerUnit, measurementUnit, minimumAmount, dueDay } = req.body;
         if (!name || !description || ratePerUnit === undefined || !dueDay) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
         const existing = await BillTemplate.findOne({ name });
         if (existing) return res.status(400).json({ error: 'Template with this name already exists' });
-        const template = new BillTemplate({ name, description, ratePerUnit, minimumAmount, dueDay });
+        const normalizedUnit = String(measurementUnit || 'unit').trim().slice(0, 20) || 'unit';
+        const template = new BillTemplate({ name, description, ratePerUnit, measurementUnit: normalizedUnit, minimumAmount, dueDay });
         await template.save();
         res.status(201).json(template);
     } catch (err) {
@@ -464,10 +465,12 @@ app.get('/api/meters/last-reading', authMiddleware, async (req, res) => {
 
 app.post('/api/meters/generate-bill', authMiddleware, async (req, res) => {
     try {
-        const { clientId, billDescription, meterDescription, currentReading, ratePerKwh, minimumAmount, dueDate } = req.body;
+        const { clientId, billDescription, meterDescription, currentReading, ratePerKwh, measurementUnit, minimumAmount, dueDate } = req.body;
         if (!clientId || !billDescription || !meterDescription || currentReading === undefined || !ratePerKwh || !dueDate) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
+
+        const normalizedUnit = String(measurementUnit || 'unit').trim().slice(0, 20) || 'unit';
 
         // Find last reading using the fixed meterDescription (e.g., "Electricity")
         const lastReadingDoc = await MeterReading.findOne({ clientId, description: meterDescription })
@@ -493,6 +496,7 @@ app.post('/api/meters/generate-bill', authMiddleware, async (req, res) => {
             currentReading,
             consumptionKwh: consumption,
             ratePerKwh,
+            measurementUnit: normalizedUnit,
             minimumAmount: minimumAmount || null
         });
         await newBill.save();
